@@ -852,6 +852,86 @@ canvas.sparkline {
   display: block;
 }
 
+
+/* =====================================================
+   v4.0 ADDITIONAL STYLES: LIGHT MODE & MOBILE IMPROVEMENTS
+   ===================================================== */
+
+/* ── Smooth Transitions ── */
+body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-badge, .tx-item, table, th, td, canvas {
+  transition: background 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* ── Light Theme Variable Overrides ── */
+.light-theme {
+  --bg-base:       #f5f5f7;
+  --bg-deep:       #e8e8ed;
+  --surface-1:     rgba(255, 255, 255, 0.45);
+  --surface-2:     rgba(255, 255, 255, 0.65);
+  --surface-3:     rgba(255, 255, 255, 0.85);
+  --border-1:      rgba(0, 0, 0, 0.06);
+  --border-2:      rgba(0, 0, 0, 0.12);
+  --border-accent: rgba(161, 139, 81, 0.45);
+
+  --gold-1: #8d7a46;
+  --gold-2: #ab9558;
+  --gold-3: #c5ad69;
+  --gold-glow: rgba(161, 139, 81, 0.08);
+
+  --text-1: #1d1d1f;
+  --text-2: #515154;
+  --text-3: #86868b;
+
+  --green:   #16a34a;
+  --red:     #dc2626;
+  --amber:   #d97706;
+  --purple:  #7c3aed;
+  --purple-glow: rgba(124, 58, 237, 0.08);
+
+  --green-bg:  rgba(22, 163, 74, 0.08);
+  --red-bg:    rgba(220, 38, 38, 0.08);
+  --amber-bg:  rgba(217, 119, 6, 0.08);
+}
+
+.light-theme .chart-card {
+  box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+}
+
+.light-theme .connect-hero {
+  background: rgba(255,255,255,0.7);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+}
+
+/* ── Mobile Layout & Alignment Overrides ── */
+@media (max-width: 640px) {
+  header {
+    flex-direction: column !important;
+    gap: 16px !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+  .header-right {
+    width: 100% !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+  }
+  .logo-wrap {
+    justify-content: center !important;
+  }
+  .stats-bar {
+    grid-template-columns: 1fr !important;
+  }
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* Sparklines scaling */
+  canvas.sparkline {
+    width: 100% !important;
+    height: 50px !important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -868,6 +948,20 @@ canvas.sparkline {
       </div>
     </div>
     <div class="header-right">
+      <!-- Theme Switcher -->
+      <button class="icon-btn" onclick="toggleTheme()" id="theme-toggle-btn" title="Toggle Theme" style="padding: 6px 10px; display: inline-flex; align-items: center; justify-content: center;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+      </button>
       <div class="net-pill">
         <span class="pulse-dot" id="net-dot"></span>
         <span id="net-label">Testnet · Chain 1979</span>
@@ -1013,10 +1107,16 @@ canvas.sparkline {
         <div class="card">
           <div class="card-header">
             <span class="card-title">Transaction History</span>
-            <button class="icon-btn" onclick="loadTxHistory()" id="refresh-tx-btn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              Refresh
-            </button>
+            <div style="display:flex;gap:8px;">
+              <button class="icon-btn" onclick="exportTxToCSV()" id="export-csv-btn" style="display:none;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                CSV
+              </button>
+              <button class="icon-btn" onclick="loadTxHistory()" id="refresh-tx-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Refresh
+              </button>
+            </div>
           </div>
           <div id="tx-list">
             <div class="loading-state">Loading transactions...</div>
@@ -1286,6 +1386,66 @@ function showTxNotif(direction, amount, from, to) {
   setTimeout(() => n.classList.remove('show'), 5000);
 }
 
+// ── Theme Manager ──
+function initTheme() {
+  const currentTheme = localStorage.getItem('theme') || 'dark';
+  if (currentTheme === 'light') {
+    document.body.classList.add('light-theme');
+    updateThemeIcon('light');
+  } else {
+    document.body.classList.remove('light-theme');
+    updateThemeIcon('dark');
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light-theme');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  updateThemeIcon(isLight ? 'light' : 'dark');
+  showToast(isLight ? 'Switched to Light Mode ☀️' : 'Switched to Dark Mode 🌙', 'success');
+
+  // Redraw Canvas charts with current theme styling
+  if (window.blockTimesData && window.blockTimesData.length >= 2) {
+    drawSparkline('canvas-blocktime', window.blockTimesData, getThemeColor('--gold-1'), getThemeColor('--gold-glow'));
+  }
+  if (window.gasHistoryData && window.gasHistoryData.length >= 2) {
+    drawSparkline('canvas-gas', window.gasHistoryData, getThemeColor('--purple'), getThemeColor('--purple-glow'));
+  }
+}
+
+function getThemeColor(variableName) {
+  if (variableName.startsWith('--')) {
+    return getComputedStyle(document.body).getPropertyValue(variableName).trim();
+  }
+  return variableName;
+}
+
+function updateThemeIcon(theme) {
+  const btn = document.getElementById('theme-toggle-btn');
+  if (!btn) return;
+  if (theme === 'light') {
+    btn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+      </svg>
+    `;
+  } else {
+    btn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+    `;
+  }
+}
+
 // ── Connect Wallet ──
 async function connectWallet() {
   if (!window.ethereum) {
@@ -1319,14 +1479,13 @@ async function connectWallet() {
     document.getElementById('disconnect-btn').style.display = 'flex';
 
     updateAddressUI();
+    initTheme();
     await refreshStats();
     await loadTxHistory();
     startCountdown();
     refreshInterval     = setInterval(doRefresh, 12000);
-    setInterval(fetchBlockTimesForChart, 60000);
     networkPollInterval = setInterval(pollNetwork, 7000);
     startBlockListener();
-    setTimeout(initCharts, 1500);
 
     window.ethereum.on('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
     window.ethereum.on('chainChanged', () => location.reload());
@@ -1361,7 +1520,6 @@ async function refreshStats() {
       : '—';
 
     document.getElementById('stat-balance').textContent   = balFmt;
-    updateGasChart(gasGwei);
     document.getElementById('stat-block').textContent     = blockNum.toLocaleString();
     document.getElementById('stat-gas').textContent       = gasGwei;
     document.getElementById('stat-status').textContent    = 'Online';
@@ -1369,10 +1527,55 @@ async function refreshStats() {
     document.getElementById('net-block').textContent      = blockNum.toLocaleString();
     document.getElementById('net-gas').textContent        = gasGwei + ' Gwei';
     document.getElementById('wallet-balance-detail').textContent = balFmt;
+
+    // Load dynamic sparkline updates
+    await fetchBlockTimesForChart();
+    await fetchGasHistoryForChart(gasGwei);
   } catch(e) {
     document.getElementById('stat-status').textContent = 'Error';
     document.getElementById('stat-status').style.color = 'var(--red)';
   }
+}
+
+// ── Sparkline Utilities ──
+async function fetchBlockTimesForChart() {
+  try {
+    const latestBlock = await provider.getBlockNumber();
+    const blocks = [];
+    const count = 10;
+    const steps = 2; // jump 2 blocks for wider span
+    for (let i = 0; i < count; i++) {
+      blocks.push(provider.getBlock(latestBlock - i * steps));
+    }
+    const resolved = await Promise.all(blocks);
+    const times = [];
+    for (let i = 0; i < resolved.length - 1; i++) {
+      if (resolved[i] && resolved[i+1]) {
+        times.push(Number(resolved[i].timestamp - resolved[i+1].timestamp) / steps);
+      }
+    }
+    times.reverse();
+    if (times.length >= 2) {
+      window.blockTimesData = times;
+      drawSparkline('canvas-blocktime', times, getThemeColor('--gold-1'), getThemeColor('--gold-glow'));
+    }
+  } catch { /* skip */ }
+}
+
+async function fetchGasHistoryForChart(currentGas) {
+  if (currentGas === '—') return;
+  const gasVal = parseFloat(currentGas);
+  if (isNaN(gasVal)) return;
+
+  if (!window.gasHistoryData) {
+    window.gasHistoryData = [gasVal, gasVal, gasVal, gasVal, gasVal];
+  } else {
+    window.gasHistoryData.push(gasVal);
+    if (window.gasHistoryData.length > 15) {
+      window.gasHistoryData.shift();
+    }
+  }
+  drawSparkline('canvas-gas', window.gasHistoryData, getThemeColor('--purple'), getThemeColor('--purple-glow'));
 }
 
 // ── Countdown & doRefresh ──
@@ -1459,10 +1662,19 @@ async function loadTxHistory() {
         }
       } catch { /* skip */ }
     }
+
+    // Save globally for CSV exporter
+    window.walletTransactions = txs;
+    const csvBtn = document.getElementById('export-csv-btn');
+
     if (!txs.length) {
+      if (csvBtn) csvBtn.style.display = 'none';
       el.innerHTML = '<div class="empty-state">No transactions in last 100 blocks.</div>';
       return;
     }
+
+    if (csvBtn) csvBtn.style.display = 'inline-flex';
+
     el.innerHTML = txs.map(tx => {
       const isOut  = tx.from?.toLowerCase() === addr;
       const dir    = tx.to ? (isOut ? 'out' : 'in') : 'ctr';
@@ -1493,6 +1705,34 @@ function getTimeAgo(ts) {
   if (d < 3600)  return Math.floor(d/60)+'m ago';
   if (d < 86400) return Math.floor(d/3600)+'h ago';
   return Math.floor(d/86400)+'d ago';
+}
+
+// ── CSV Exporter ──
+function exportTxToCSV() {
+  const txs = window.walletTransactions;
+  if (!txs || txs.length === 0) {
+    showToast('No transactions to export', 'error');
+    return;
+  }
+  let csv = 'Transaction Hash,Block,Timestamp,Date/Time,Direction,Value (RITUAL),From,To\n';
+  txs.forEach(tx => {
+    const isOut = tx.from?.toLowerCase() === userAddress.toLowerCase();
+    const dir = isOut ? 'OUT' : 'IN';
+    const val = ethers.formatEther(tx.value || 0n);
+    const date = tx.blockTimestamp ? new Date(tx.blockTimestamp * 1000).toLocaleString() : '';
+    csv += `"${tx.hash}",${tx.blockNumber},${tx.blockTimestamp},"${date}","${dir}",${val},"${tx.from}","${tx.to || ''}"\n`;
+  });
+  
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `ritual_tx_history_${userAddress.slice(0, 8)}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('CSV exported successfully! 💾', 'success');
 }
 
 // ── Send ──
@@ -1559,6 +1799,12 @@ function disconnectWallet() {
   document.getElementById('disconnect-btn').style.display = 'none';
   showToast('Disconnected', 'info');
 }
+
+// ── INITIAL THEME CHECK ──
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+});
+
 </script>
 
 </body>
