@@ -943,6 +943,75 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
   text-decoration: underline;
 }
 
+
+/* ── v7.0 NFT Gallery Styles ── */
+.nft-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.nft-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  position: relative;
+}
+.nft-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-accent);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+.nft-img-wrap {
+  width: 100%;
+  padding-top: 100%; /* 1:1 Aspect Ratio */
+  position: relative;
+  background: var(--surface-1);
+}
+.nft-img {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  object-fit: cover;
+}
+.nft-placeholder {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  background: linear-gradient(135deg, var(--surface-1), var(--surface-2));
+}
+.nft-meta {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nft-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nft-collection {
+  font-size: 10px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 </style>
 </head>
 <body>
@@ -1131,6 +1200,35 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           </div>
           <div id="tx-list">
             <div class="loading-state">Loading transactions...</div>
+          </div>
+        </div>
+
+        <!-- NFT Gallery (v7.0) -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">NFT Gallery</span>
+            <div style="display:flex;gap:8px;">
+              <button class="icon-btn" onclick="toggleAddNft()" id="add-nft-btn" title="Add Custom NFT Contract">
+                + Add NFT
+              </button>
+              <button class="icon-btn" onclick="loadNfts()" id="refresh-nft-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Scan
+              </button>
+            </div>
+          </div>
+          <div class="card-body" style="padding-top:8px;">
+            <!-- Add NFT Contract panel -->
+            <div id="add-nft-panel" style="display:none;flex-direction:column;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed var(--border-1);">
+              <div class="form-group" style="margin-bottom:0;">
+                <input type="text" class="form-input" id="nft-contract-input" placeholder="NFT Contract Address (0x...)" style="font-size:12px;padding:8px 12px;height:auto;" autocomplete="off" spellcheck="false">
+              </div>
+              <button class="btn btn-full" onclick="importNftContract()" style="font-size:11px;padding:6px 12px;justify-content:center;border-radius:var(--r-sm);">Import Contract</button>
+            </div>
+            
+            <div id="nft-list" class="nft-grid">
+              <div class="loading-state" style="grid-column: span 2;">Scanning recent blocks for NFTs...</div>
+            </div>
           </div>
         </div>
 
@@ -1464,7 +1562,7 @@ function initTheme() {
   }
 }
 
-// ── Address Book & Contacts (v6.0) ──
+// ── Address Book & Contacts ──
 function getContacts() {
   try {
     const list = localStorage.getItem('ritual_contacts');
@@ -1546,7 +1644,7 @@ function saveCurrentRecipient() {
   }
 }
 
-// ── Gas Presets Speed Selector (v6.0) ──
+// ── Gas Presets Speed Selector ──
 function setSpeedPreset(speed) {
   window.selectedSpeedPreset = speed;
   const buttons = ['speed-slow', 'speed-avg', 'speed-fast'];
@@ -1577,6 +1675,186 @@ async function updateGasEstimateUI() {
     el.textContent = `Est. Fee: ${val} RITUAL`;
   } catch {
     el.textContent = 'Est. Fee: — RITUAL';
+  }
+}
+
+// ── NFT Gallery Functions (v7.0) ──
+function toggleAddNft() {
+  const panel = document.getElementById('add-nft-panel');
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+}
+
+function getCustomNftContracts() {
+  try {
+    const list = localStorage.getItem('ritual_nft_contracts');
+    return list ? JSON.parse(list) : [];
+  } catch { return []; }
+}
+
+function saveCustomNftContract(address) {
+  const list = getCustomNftContracts();
+  if (list.includes(address.toLowerCase())) return;
+  list.push(address.toLowerCase());
+  localStorage.setItem('ritual_nft_contracts', JSON.stringify(list));
+}
+
+async function importNftContract() {
+  const input = document.getElementById('nft-contract-input');
+  const addr = input.value.trim();
+  if (!addr || !ethers.isAddress(addr)) {
+    showToast('Invalid Contract Address', 'error');
+    return;
+  }
+  saveCustomNftContract(addr);
+  input.value = '';
+  document.getElementById('add-nft-panel').style.display = 'none';
+  showToast('NFT Contract imported!', 'success');
+  await loadNfts();
+}
+
+async function loadNfts() {
+  const el = document.getElementById('nft-list');
+  if (!el) return;
+  el.innerHTML = '<div class="loading-state" style="grid-column: span 2;">Scanning logs for NFTs...</div>';
+
+  try {
+    const latestBlock = await readProvider.getBlockNumber();
+    const addr = userAddress.toLowerCase();
+    
+    // Filter Transfer events (Topic 0 matching Transfer(address,address,uint256))
+    const topicTransfer = ethers.id("Transfer(address,address,uint256)");
+    const topicTo = ethers.zeroPadValue(addr, 32);
+
+    // Fetch logs (last 500 blocks for performance, custom contracts scanned explicitly)
+    const filter = {
+      fromBlock: latestBlock - 500,
+      toBlock: latestBlock,
+      topics: [topicTransfer, null, topicTo]
+    };
+    
+    const logs = await readProvider.getLogs(filter);
+    const discoveredTokens = [];
+
+    // Process logs (ERC-721 has 4 topics: sig, from, to, tokenId)
+    logs.forEach(log => {
+      if (log.topics.length === 4) {
+        const tokenId = BigInt(log.topics[3]).toString();
+        discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
+      }
+    });
+
+    // Also scan custom imported NFT contracts (last 3000 blocks for depth)
+    const customContracts = getCustomNftContracts();
+    if (customContracts.length > 0) {
+      const customFilter = {
+        fromBlock: latestBlock - 3000,
+        toBlock: latestBlock,
+        address: customContracts,
+        topics: [topicTransfer, null, topicTo]
+      };
+      try {
+        const customLogs = await readProvider.getLogs(customFilter);
+        customLogs.forEach(log => {
+          if (log.topics.length === 4) {
+            const tokenId = BigInt(log.topics[3]).toString();
+            discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
+          }
+        });
+      } catch {}
+    }
+
+    // Deduplicate
+    const tokenMap = new Map();
+    discoveredTokens.forEach(t => {
+      tokenMap.set(`${t.contractAddress}_${t.tokenId}`, t);
+    });
+
+    const uniqueTokens = Array.from(tokenMap.values());
+    if (uniqueTokens.length === 0) {
+      el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No NFTs found. Try adding a contract address.</div>';
+      return;
+    }
+
+    // Resolve Metadata
+    const abi = [
+      "function name() view returns (string)",
+      "function symbol() view returns (string)",
+      "function tokenURI(uint256 tokenId) view returns (string)",
+      "function ownerOf(uint256 tokenId) view returns (address)"
+    ];
+
+    const nftItemsHTML = [];
+    
+    for (const t of uniqueTokens) {
+      try {
+        const contract = new ethers.Contract(t.contractAddress, abi, readProvider);
+        
+        // Verify current ownership (to prevent showing transferred away tokens)
+        const owner = await contract.ownerOf(t.tokenId);
+        if (owner.toLowerCase() !== addr) continue;
+
+        let collectionName = 'Unknown Collection';
+        let tokenUri = '';
+        try { collectionName = await contract.name(); } catch {}
+        try { tokenUri = await contract.tokenURI(t.tokenId); } catch {}
+
+        let name = `${collectionName} #${t.tokenId}`;
+        let imageUrl = '';
+
+        if (tokenUri) {
+          try {
+            let metadata = {};
+            if (tokenUri.startsWith("data:application/json;base64,")) {
+              const base64 = tokenUri.split(",")[1];
+              metadata = JSON.parse(atob(base64));
+            } else {
+              let fetchUrl = tokenUri;
+              if (tokenUri.startsWith("ipfs://")) {
+                fetchUrl = tokenUri.replace("ipfs://", "https://ipfs.io/ipfs/");
+              }
+              const res = await fetch(fetchUrl);
+              metadata = await res.json();
+            }
+            name = metadata.name || `${collectionName} #${t.tokenId}`;
+            imageUrl = metadata.image || metadata.image_url || '';
+            if (imageUrl.startsWith("ipfs://")) {
+              imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
+            }
+          } catch {
+            name = `${collectionName} #${t.tokenId}`;
+          }
+        }
+
+        const imgBlock = imageUrl
+          ? `<img src="${imageUrl}" class="nft-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+          : '';
+
+        nftItemsHTML.push(`<div class="nft-card">
+          <div class="nft-img-wrap">
+            ${imgBlock}
+            <div class="nft-placeholder" style="${imageUrl ? 'display:none;' : ''}">
+              <span style="font-size:24px;margin-bottom:8px;">🎨</span>
+              <span>#${t.tokenId}</span>
+            </div>
+          </div>
+          <div class="nft-meta">
+            <div class="nft-name" title="${name}">${name}</div>
+            <div class="nft-collection" title="${collectionName}">${collectionName}</div>
+          </div>
+        </div>`);
+
+      } catch (err) { /* skip faulty contracts */ }
+    }
+
+    if (nftItemsHTML.length === 0) {
+      el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No owned NFTs found in history.</div>';
+    } else {
+      el.innerHTML = nftItemsHTML.join('');
+    }
+
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">Failed to scan logs. Try again.</div>';
   }
 }
 
@@ -1707,7 +1985,7 @@ async function switchRpc(rpcUrl) {
     const displayUrl = rpcUrl.replace('https://', '').replace('http://', '');
     const shortUrl = displayUrl.length > 25 ? displayUrl.slice(0, 22) + '...' : displayUrl;
     if (label) {
-      label.innerHTML = `${shortUrl} <span style="font-size:10px;">⚙️</span>`;
+      label.innerHTML = `dots ${shortUrl} <span style="font-size:10px;">⚙️</span>`;
     }
 
     showToast('RPC node switched successfully!', 'success');
@@ -1721,6 +1999,7 @@ async function switchRpc(rpcUrl) {
       startBlockListener();
       await refreshStats();
       await loadTxHistory();
+      await loadNfts();
       startCountdown();
     }
   } catch (e) {
@@ -1764,6 +2043,7 @@ async function connectWallet() {
     initTheme();
     await refreshStats();
     await loadTxHistory();
+    await loadNfts();
     startCountdown();
     refreshInterval     = setInterval(doRefresh, 12000);
     networkPollInterval = setInterval(pollNetwork, 7000);
@@ -1902,6 +2182,7 @@ function startBlockListener() {
           setTimeout(async () => {
             await refreshStats();
             await loadTxHistory();
+            await loadNfts();
           }, 2000);
         }
       }
