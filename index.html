@@ -282,6 +282,7 @@ header {
   border-radius: 50%;
   border: 1px solid rgba(200,185,138,0.15);
   animation: ring-pulse 3s ease-in-out infinite;
+  transition: transform 0.8s ease, opacity 0.8s ease, border-color 0.8s ease;
 }
 .connect-ring:nth-child(2) { inset: -40px; animation-delay: 0.5s; opacity: 0.6; }
 .connect-ring:nth-child(3) { inset: -60px; animation-delay: 1s; opacity: 0.3; }
@@ -289,6 +290,55 @@ header {
 @keyframes ring-pulse {
   0%, 100% { transform: scale(1); opacity: 0.4; }
   50%       { transform: scale(1.04); opacity: 0.8; }
+}
+
+/* Connect screen portal zoom animation */
+#connect-screen > *:not(.connect-hero) {
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#connect-screen.success-active > *:not(.connect-hero) {
+  opacity: 0 !important;
+  transform: translateY(20px);
+  pointer-events: none;
+}
+
+.connect-logo.success-zoom {
+  animation: logo-portal 0.9s cubic-bezier(0.7, 0, 0.3, 1) forwards !important;
+}
+
+@keyframes logo-portal {
+  0% {
+    transform: scale(1) translateY(0);
+    filter: drop-shadow(0 0 24px rgba(200,185,138,0.3));
+    opacity: 1;
+  }
+  30% {
+    transform: scale(0.85) translateY(0);
+    filter: drop-shadow(0 0 35px rgba(200,185,138,0.6));
+    opacity: 1;
+  }
+  100% {
+    transform: scale(7);
+    filter: drop-shadow(0 0 100px rgba(200,185,138,0.95));
+    opacity: 0;
+  }
+}
+
+.connect-ring.success-zoom {
+  animation: ring-portal 0.9s cubic-bezier(0.7, 0, 0.3, 1) forwards !important;
+}
+
+@keyframes ring-portal {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+    border-color: rgba(200,185,138,0.15);
+  }
+  100% {
+    transform: scale(8);
+    opacity: 0;
+    border-color: rgba(200,185,138,0.8);
+  }
 }
 
 .connect-title {
@@ -311,7 +361,16 @@ header {
 /* =====================================================
    DASHBOARD
    ===================================================== */
-#dashboard { display: none; }
+#dashboard {
+  display: none;
+  opacity: 0;
+  transform: translateY(-15px);
+  transition: opacity 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+#dashboard.fade-in-active {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 /* ── Top Stats Bar ── */
 .stats-bar {
@@ -1102,9 +1161,9 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
         <div class="stat-sub" id="stat-block-sub">latest</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Gas Price</div>
-        <div class="stat-value" id="stat-gas">—</div>
-        <div class="stat-sub">Gwei</div>
+        <div class="stat-label">Type</div>
+        <div class="stat-value" id="stat-type">EOA</div>
+        <div class="stat-sub">wallet</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Network Status</div>
@@ -2038,8 +2097,27 @@ async function connectWallet() {
     signer     = await provider.getSigner();
     userAddress = await signer.getAddress();
 
-    document.getElementById('connect-screen').style.display = 'none';
-    document.getElementById('dashboard').style.display      = 'block';
+    // Trigger transition animations
+    const connectScreen = document.getElementById('connect-screen');
+    const connectLogo = connectScreen.querySelector('.connect-logo');
+    const connectRings = connectScreen.querySelectorAll('.connect-ring');
+
+    connectScreen.classList.add('success-active');
+    if (connectLogo) connectLogo.classList.add('success-zoom');
+    connectRings.forEach(ring => ring.classList.add('success-zoom'));
+
+    // Wait for the portal zoom animation to finish (850ms)
+    await new Promise(resolve => setTimeout(resolve, 850));
+
+    connectScreen.style.display = 'none';
+    const dashboard = document.getElementById('dashboard');
+    dashboard.style.display = 'block';
+    dashboard.classList.add('fade-in');
+    
+    // Trigger browser layout for transition
+    void dashboard.offsetWidth;
+    
+    dashboard.classList.add('fade-in-active');
     document.getElementById('disconnect-btn').style.display = 'flex';
 
     updateAddressUI();
@@ -2073,20 +2151,22 @@ function updateAddressUI() {
 // ── Refresh stats ──
 async function refreshStats() {
   try {
-    const [blockNum, feeData, bal] = await Promise.all([
+    const [blockNum, feeData, bal, code] = await Promise.all([
       readProvider.getBlockNumber(),
       readProvider.getFeeData(),
-      readProvider.getBalance(userAddress)
+      readProvider.getBalance(userAddress),
+      readProvider.getCode(userAddress)
     ]);
     balance = bal;
     const balFmt = parseFloat(ethers.formatEther(bal)).toFixed(4);
     const gasGwei = feeData.gasPrice
       ? parseFloat(ethers.formatUnits(feeData.gasPrice, 'gwei')).toFixed(2)
       : '—';
+    const accountType = (code && code !== '0x') ? 'Contract' : 'EOA';
 
     document.getElementById('stat-balance').textContent   = balFmt;
     document.getElementById('stat-block').textContent     = blockNum.toLocaleString();
-    document.getElementById('stat-gas').textContent       = gasGwei;
+    document.getElementById('stat-type').textContent      = accountType;
     document.getElementById('stat-status').textContent    = 'Online';
     document.getElementById('stat-status').className      = 'stat-value green';
     document.getElementById('net-block').textContent      = blockNum.toLocaleString();
@@ -2386,8 +2466,26 @@ function disconnectWallet() {
   }
   provider = signer = userAddress = balance = null;
   knownTxHashes.clear();
-  document.getElementById('connect-screen').style.display = 'flex';
-  document.getElementById('dashboard').style.display      = 'none';
+
+  const connectScreen = document.getElementById('connect-screen');
+  const connectLogo = connectScreen.querySelector('.connect-logo');
+  const connectRings = connectScreen.querySelectorAll('.connect-ring');
+
+  connectScreen.classList.remove('success-active');
+  if (connectLogo) connectLogo.classList.remove('success-zoom');
+  connectRings.forEach(ring => ring.classList.remove('success-zoom'));
+
+  const dashboard = document.getElementById('dashboard');
+  dashboard.classList.remove('fade-in', 'fade-in-active');
+
+  const btn = document.getElementById('connect-btn');
+  if (btn) {
+    btn.textContent = 'Connect Wallet';
+    btn.disabled = false;
+  }
+
+  connectScreen.style.display = 'flex';
+  dashboard.style.display      = 'none';
   document.getElementById('disconnect-btn').style.display = 'none';
   showToast('Disconnected', 'info');
 }
