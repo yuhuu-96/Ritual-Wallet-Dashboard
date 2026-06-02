@@ -16,13 +16,16 @@ A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no
 |---|---|
 | 🔗 **Wallet Connect** | MetaMask integration with **auto network add** for Ritual Testnet |
 | 💰 **Wallet Info** | Connected address, RITUAL balance, one-click copy with custom checkmark animation & disconnect |
+| 🌙 **Light/Dark Switcher** | Premium, buttery-smooth **Light/Dark mode switcher** with custom glassmorphic overrides & theme-responsive chart coloring |
 | 📡 **Network Stats** | Live block number, gas price, and green **Live dot indicator** synchronized with RPC |
 | 🔄 **Activity Refresh** | Visual circular **countdown timer** showing upcoming refreshes |
 | 📈 **Block Time Sparkline** | Real-time **pure Canvas sparkline** tracking the last 20 block intervals with bezier curves & glow effects |
 | 📉 **Gas Price Sparkline** | Real-time **pure Canvas sparkline** showing the gas price trend over recent updates |
 | 📜 **Transaction History** | Last 10 txs for your wallet fetched via RPC (scans last 100 blocks) |
+| 💾 **CSV Exporter** | One-click **CSV exporter** to download parsed transaction history as a spreadsheet |
 | 📤 **Quick Send** | Send RITUAL directly from the dashboard with MAX amount helper |
 | 🔍 **Explorer Shortcut** | Direct link to Ritual Explorer for the connected address |
+| 📱 **Mobile Responsive** | Fully optimized **responsive layouts & font scaling** for small and narrow screens |
 
 ---
 
