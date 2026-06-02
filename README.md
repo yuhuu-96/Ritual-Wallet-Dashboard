@@ -25,6 +25,8 @@ A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no
 | 📜 **Transaction History** | Last 10 txs for your wallet fetched via RPC (scans last 100 blocks) |
 | 💾 **CSV Exporter** | One-click **CSV exporter** to download parsed transaction history as a spreadsheet |
 | 📤 **Quick Send** | Send RITUAL directly from the dashboard with MAX amount helper |
+| 📖 **Address Book** | Local storage-based **contacts manager** to save frequently used addresses and nicknames |
+| ⚡ **Priority Gas Presets** | Choose transaction speeds (Slow/Standard/Fast) with a real-time **estimated fee calculator** |
 | 🔍 **Explorer Shortcut** | Direct link to Ritual Explorer for the connected address |
 | 📱 **Mobile Responsive** | Fully optimized **responsive layouts & font scaling** for small and narrow screens |
 
