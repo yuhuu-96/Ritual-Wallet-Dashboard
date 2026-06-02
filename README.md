@@ -4,13 +4,13 @@
 [![Network](https://img.shields.io/badge/Network-Ritual%20Testnet-purple?style=for-the-badge)](https://ritual.net/)
 [![Chain ID](https://img.shields.io/badge/Chain%20ID-1979-blue?style=for-the-badge)]()
 
-> 🌐 **Live App:** [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
+> ❖ **Live App:** [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
 
 A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no database — all data is fetched directly from the Ritual RPC node in real-time via the browser.
 
 ---
 
-## Features
+## ❖ Features
 
 | Feature | Description |
 |---|---|
@@ -32,7 +32,7 @@ A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no
 
 ---
 
-## Quick Start
+## ❖ Quick Start
 
 ### Option 1 — Use the Live Demo
 Click here: [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
@@ -47,7 +47,7 @@ start index.html
 
 ---
 
-##  Network Configuration
+## ❖  Network Configuration
 
 | Property | Value |
 |---|---|
@@ -61,7 +61,7 @@ start index.html
 
 ---
 
-## How It Works
+## ❖ How It Works
 
 ```
 User opens page
@@ -79,7 +79,7 @@ Dashboard loads:
 
 ---
 
-## Tech Stack
+## ❖ Tech Stack
 
 - **Pure HTML + CSS + JavaScript** — zero frameworks, zero dependencies
 - **[ethers.js v6](https://docs.ethers.org/v6/)** — loaded via CDN
@@ -88,7 +88,7 @@ Dashboard loads:
 
 ---
 
-##  Files
+## ❖ Files
 
 ```
 Ritual-Wallet-Dashboard/
@@ -101,7 +101,7 @@ Ritual-Wallet-Dashboard/
 
 ---
 
-##  Related
+## ❖ Related
 
 - [Ritual Network](https://ritual.net/)
 - [Ritual Explorer](https://explorer.ritualfoundation.org)
