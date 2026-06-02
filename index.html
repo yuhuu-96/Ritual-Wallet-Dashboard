@@ -932,6 +932,17 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
   }
 }
 
+
+/* ── v6.0 Speed Preset Buttons ── */
+.speed-btn.active {
+  background: var(--surface-3) !important;
+  border-color: var(--border-accent) !important;
+  color: var(--gold-1) !important;
+}
+.label-link:hover {
+  text-decoration: underline;
+}
+
 </style>
 </head>
 <body>
@@ -1189,15 +1200,44 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
             <span class="card-title">Quick Send</span>
           </div>
           <div class="card-body">
-            <div class="form-group">
-              <label class="form-label">Recipient Address</label>
-              <input type="text" class="form-input" id="send-to" placeholder="0x..." autocomplete="off" spellcheck="false">
+            <div class="form-group" style="position:relative;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label class="form-label" style="margin-bottom:0;">Recipient Address</label>
+                <span class="label-link" onclick="toggleAddressBook()" style="font-size:11px;color:var(--gold-1);cursor:pointer;user-select:none;">
+                  📖 Contacts
+                </span>
+              </div>
+              <div class="input-with-btn">
+                <input type="text" class="form-input" id="send-to" placeholder="0x..." autocomplete="off" spellcheck="false" oninput="checkRecipientInContacts()">
+                <button class="btn btn-ghost" onclick="saveCurrentRecipient()" id="save-contact-btn" style="padding:12px;font-size:12px;display:none;" title="Save to Contacts">+</button>
+              </div>
+
+              <!-- Address Book Dropdown -->
+              <div id="address-book-panel" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg-deep);border:1px solid var(--border-accent);border-radius:var(--r-sm);z-index:999;margin-top:4px;padding:8px;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto;box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+                <div id="address-book-list" style="display:flex;flex-direction:column;gap:4px;">
+                  <div style="font-size:11px;color:var(--text-3);padding:4px;text-align:center;">No saved contacts.</div>
+                </div>
+              </div>
             </div>
+            
             <div class="form-group">
               <label class="form-label">Amount (RITUAL)</label>
               <div class="input-with-btn">
                 <input type="number" class="form-input" id="send-amount" placeholder="0.00" step="any" min="0">
                 <button class="btn btn-ghost" onclick="setMaxAmount()" style="padding:12px 16px;font-size:12px;">MAX</button>
+              </div>
+            </div>
+
+            <!-- Priority Gas Presets & Cost Estimator -->
+            <div class="form-group" style="margin-top:12px;border-top:1px dashed var(--border-1);padding-top:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:11px;">
+                <span class="label" style="color:var(--text-2);">Gas Priority</span>
+                <span id="gas-cost-estimate" style="font-family:var(--font-mono);color:var(--text-3);">Est. Fee: — RITUAL</span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;">
+                <button class="btn btn-ghost speed-btn active" id="speed-slow" onclick="setSpeedPreset('slow')" style="padding:6px;font-size:11px;justify-content:center;border-radius:var(--r-sm);">Slow</button>
+                <button class="btn btn-ghost speed-btn" id="speed-avg" onclick="setSpeedPreset('average')" style="padding:6px;font-size:11px;justify-content:center;border-radius:var(--r-sm);">Standard</button>
+                <button class="btn btn-ghost speed-btn" id="speed-fast" onclick="setSpeedPreset('fast')" style="padding:6px;font-size:11px;justify-content:center;border-radius:var(--r-sm);">Fast</button>
               </div>
             </div>
             <button class="btn btn-primary btn-full" id="send-btn" onclick="sendTransaction()">
@@ -1421,6 +1461,122 @@ function initTheme() {
   } else {
     document.body.classList.remove('light-theme');
     updateThemeIcon('dark');
+  }
+}
+
+// ── Address Book & Contacts (v6.0) ──
+function getContacts() {
+  try {
+    const list = localStorage.getItem('ritual_contacts');
+    return list ? JSON.parse(list) : [];
+  } catch { return []; }
+}
+
+function saveContact(name, address) {
+  const contacts = getContacts();
+  contacts.push({ name, address: address.toLowerCase() });
+  localStorage.setItem('ritual_contacts', JSON.stringify(contacts));
+  showToast(`Saved contact: ${name}`, 'success');
+  renderAddressBook();
+  checkRecipientInContacts();
+}
+
+function deleteContact(address) {
+  let contacts = getContacts();
+  contacts = contacts.filter(c => c.address !== address.toLowerCase());
+  localStorage.setItem('ritual_contacts', JSON.stringify(contacts));
+  showToast('Contact deleted', 'info');
+  renderAddressBook();
+  checkRecipientInContacts();
+}
+
+function toggleAddressBook() {
+  const panel = document.getElementById('address-book-panel');
+  if (!panel) return;
+  const isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'flex' : 'none';
+  if (isHidden) {
+    renderAddressBook();
+  }
+}
+
+function renderAddressBook() {
+  const listEl = document.getElementById('address-book-list');
+  if (!listEl) return;
+  const contacts = getContacts();
+  if (contacts.length === 0) {
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--text-3);padding:4px;text-align:center;">No saved contacts.</div>';
+    return;
+  }
+  listEl.innerHTML = contacts.map(c => {
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px;border-bottom:1px solid var(--border-1);gap:12px;">
+      <span onclick="selectContact('${c.address}')" style="cursor:pointer;color:var(--text-1);font-weight:500;font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.name} (${c.address})">
+        👤 ${c.name} <span style="font-size:10px;color:var(--text-3);font-family:var(--font-mono);">(${c.address.slice(0,6)}...${c.address.slice(-4)})</span>
+      </span>
+      <button class="btn btn-ghost" onclick="deleteContact('${c.address}')" style="padding:4px 8px;font-size:10px;height:auto;color:var(--red);border-color:transparent;">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function selectContact(address) {
+  document.getElementById('send-to').value = address;
+  document.getElementById('address-book-panel').style.display = 'none';
+  checkRecipientInContacts();
+}
+
+function checkRecipientInContacts() {
+  const addr = document.getElementById('send-to').value.trim();
+  const btn = document.getElementById('save-contact-btn');
+  if (!btn) return;
+  if (!addr || !ethers.isAddress(addr)) {
+    btn.style.display = 'none';
+    return;
+  }
+  const contacts = getContacts();
+  const exists = contacts.some(c => c.address === addr.toLowerCase());
+  btn.style.display = exists ? 'none' : 'block';
+}
+
+function saveCurrentRecipient() {
+  const addr = document.getElementById('send-to').value.trim();
+  if (!addr || !ethers.isAddress(addr)) return;
+  const name = prompt('Enter contact nickname:');
+  if (name && name.trim()) {
+    saveContact(name.trim(), addr);
+  }
+}
+
+// ── Gas Presets Speed Selector (v6.0) ──
+function setSpeedPreset(speed) {
+  window.selectedSpeedPreset = speed;
+  const buttons = ['speed-slow', 'speed-avg', 'speed-fast'];
+  buttons.forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+  let activeId = 'speed-slow';
+  if (speed === 'average') activeId = 'speed-avg';
+  else if (speed === 'fast') activeId = 'speed-fast';
+  document.getElementById(activeId).classList.add('active');
+  updateGasEstimateUI();
+}
+
+async function updateGasEstimateUI() {
+  const el = document.getElementById('gas-cost-estimate');
+  if (!el) return;
+  try {
+    const feeData = await readProvider.getFeeData();
+    const gasPrice = feeData.gasPrice || 2500000000n;
+    const speed = window.selectedSpeedPreset || 'slow';
+    let multiplier = 1.0;
+    if (speed === 'average') multiplier = 1.3;
+    else if (speed === 'fast') multiplier = 1.8;
+
+    const estimatedGasPrice = Number(gasPrice) * multiplier;
+    const txCost = (21000n * BigInt(Math.floor(estimatedGasPrice)));
+    const val = parseFloat(ethers.formatEther(txCost)).toFixed(6);
+    el.textContent = `Est. Fee: ${val} RITUAL`;
+  } catch {
+    el.textContent = 'Est. Fee: — RITUAL';
   }
 }
 
@@ -1657,6 +1813,7 @@ async function refreshStats() {
     // Load dynamic sparkline updates
     await fetchBlockTimesForChart();
     await fetchGasHistoryForChart(gasGwei);
+    updateGasEstimateUI();
   } catch(e) {
     document.getElementById('stat-status').textContent = 'Error';
     document.getElementById('stat-status').style.color = 'var(--red)';
@@ -1872,7 +2029,30 @@ async function sendTransaction() {
   btn.disabled = true;
   try {
     showToast('Confirm in MetaMask...', 'info');
-    const tx = await signer.sendTransaction({ to, value: ethers.parseEther(amt) });
+    
+    // Construct transaction options with EIP-1559 settings based on chosen priority preset
+    let txOptions = { to, value: ethers.parseEther(amt) };
+    try {
+      const feeData = await readProvider.getFeeData();
+      const baseFee = feeData.maxFeePerGas 
+        ? (feeData.maxFeePerGas - feeData.maxPriorityFeePerGas) 
+        : (feeData.gasPrice || 2500000000n);
+      
+      let priorityFee;
+      const speed = window.selectedSpeedPreset || 'slow';
+      if (speed === 'slow') {
+        priorityFee = ethers.parseUnits('1', 'gwei');
+      } else if (speed === 'average') {
+        priorityFee = ethers.parseUnits('2.5', 'gwei');
+      } else {
+        priorityFee = ethers.parseUnits('5', 'gwei');
+      }
+      
+      txOptions.maxPriorityFeePerGas = priorityFee;
+      txOptions.maxFeePerGas = baseFee + priorityFee;
+    } catch { /* fallback to default */ }
+
+    const tx = await signer.sendTransaction(txOptions);
     showToast('Sent! Waiting for block...', 'info');
     await tx.wait();
     showToast('Confirmed! ✓', 'success');
