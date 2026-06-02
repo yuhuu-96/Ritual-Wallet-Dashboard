@@ -1154,9 +1154,31 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
               <span class="label">Gas Price</span>
               <span class="val" id="net-gas">—</span>
             </div>
-            <div class="net-row">
-              <span class="label">RPC</span>
-              <span class="val" style="font-size:10px;color:var(--text-3)">rpc.ritualfoundation.org</span>
+            <div class="net-row" style="flex-direction:column;align-items:stretch;gap:8px;border-top:1px dashed var(--border-1);padding-top:12px;margin-top:4px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span class="label">RPC Node</span>
+                <span class="val" id="current-rpc-label" style="font-size:11px;color:var(--gold-1);cursor:pointer;display:inline-flex;align-items:center;gap:4px;" onclick="toggleRpcSettings()">
+                  rpc.ritualfoundation.org <span style="font-size:10px;">⚙️</span>
+                </span>
+              </div>
+              
+              <!-- RPC Settings Expandable Panel -->
+              <div id="rpc-settings-panel" style="display:none;flex-direction:column;gap:8px;margin-top:4px;">
+                <div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--font-mono);">
+                  <span style="color:var(--text-2);">Ping / Latency</span>
+                  <span id="rpc-ping" class="green">— ms</span>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <select class="form-input" id="rpc-selector" onchange="handleRpcSelectChange()" style="font-size:12px;padding:8px 12px;height:auto;background:var(--surface-2);border:1px solid var(--border-1);color:var(--text-1);border-radius:var(--r-sm);">
+                    <option value="https://rpc.ritualfoundation.org">Official Ritual RPC</option>
+                    <option value="custom">Custom RPC Url...</option>
+                  </select>
+                </div>
+                <div class="form-group" id="custom-rpc-group" style="display:none;margin-bottom:0;flex-direction:column;gap:6px;">
+                  <input type="text" class="form-input" id="custom-rpc-input" placeholder="https://..." style="font-size:12px;padding:8px 12px;height:auto;color:var(--text-1);" autocomplete="off" spellcheck="false">
+                  <button class="btn" onclick="applyCustomRpc()" style="font-size:11px;padding:6px 12px;width:100%;justify-content:center;border-radius:var(--r-sm);">Apply & Switch</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1354,13 +1376,17 @@ const RITUAL_CHAIN = {
   blockExplorerUrls:['https://explorer.ritualfoundation.org']
 };
 const EXPLORER   = 'https://explorer.ritualfoundation.org';
-const RPC_URL    = 'https://rpc.ritualfoundation.org';
 const CHAIN_ID   = 1979;
 
 let provider, signer, userAddress, balance;
+let readProvider; // Read-only RPC provider
+let activeRpcUrl = 'https://rpc.ritualfoundation.org';
 let refreshInterval, networkPollInterval, countdownInterval, blockListener;
 let countdownSec = 12;
 let knownTxHashes = new Set();
+
+// ── Initialize readProvider immediately ──
+readProvider = new ethers.JsonRpcProvider(activeRpcUrl);
 
 // ── Toast ──
 function showToast(msg, type = 'info') {
@@ -1446,6 +1472,106 @@ function updateThemeIcon(theme) {
   }
 }
 
+// ── Kustom RPC switcher ──
+function toggleRpcSettings() {
+  const panel = document.getElementById('rpc-settings-panel');
+  if (!panel) return;
+  const isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'flex' : 'none';
+  if (isHidden) {
+    measureRpcLatency(activeRpcUrl);
+  }
+}
+
+async function measureRpcLatency(rpcUrl) {
+  const pingEl = document.getElementById('rpc-ping');
+  if (pingEl) {
+    pingEl.textContent = 'measuring...';
+    pingEl.className = 'val';
+  }
+  const start = Date.now();
+  try {
+    const tempProvider = new ethers.JsonRpcProvider(rpcUrl);
+    await tempProvider.getBlockNumber();
+    const ms = Date.now() - start;
+    if (pingEl) {
+      pingEl.textContent = ms + ' ms';
+      if (ms < 150) {
+        pingEl.className = 'green';
+      } else if (ms < 350) {
+        pingEl.className = 'amber';
+      } else {
+        pingEl.className = 'red';
+      }
+    }
+    return ms;
+  } catch {
+    if (pingEl) {
+      pingEl.textContent = 'timeout';
+      pingEl.className = 'red';
+    }
+    return -1;
+  }
+}
+
+function handleRpcSelectChange() {
+  const select = document.getElementById('rpc-selector');
+  const customGroup = document.getElementById('custom-rpc-group');
+  if (select.value === 'custom') {
+    customGroup.style.display = 'flex';
+  } else {
+    customGroup.style.display = 'none';
+    switchRpc(select.value);
+  }
+}
+
+function applyCustomRpc() {
+  const input = document.getElementById('custom-rpc-input');
+  const val = input.value.trim();
+  if (!val || (!val.startsWith('http://') && !val.startsWith('https://'))) {
+    showToast('Invalid RPC URL. Must start with http:// or https://', 'error');
+    return;
+  }
+  switchRpc(val);
+}
+
+async function switchRpc(rpcUrl) {
+  showToast('Switching RPC Node...', 'info');
+  const ping = await measureRpcLatency(rpcUrl);
+  if (ping === -1) {
+    showToast('RPC switch aborted: Node is offline/timeout', 'error');
+    return;
+  }
+  try {
+    activeRpcUrl = rpcUrl;
+    readProvider = new ethers.JsonRpcProvider(rpcUrl);
+
+    // Update label display
+    const label = document.getElementById('current-rpc-label');
+    const displayUrl = rpcUrl.replace('https://', '').replace('http://', '');
+    const shortUrl = displayUrl.length > 25 ? displayUrl.slice(0, 22) + '...' : displayUrl;
+    if (label) {
+      label.innerHTML = `${shortUrl} <span style="font-size:10px;">⚙️</span>`;
+    }
+
+    showToast('RPC node switched successfully!', 'success');
+
+    // Re-bind listeners & refresh
+    if (userAddress) {
+      if (blockListener) {
+        // Clear previous listener
+        try { readProvider.removeAllListeners('block'); } catch {}
+      }
+      startBlockListener();
+      await refreshStats();
+      await loadTxHistory();
+      startCountdown();
+    }
+  } catch (e) {
+    showToast('Failed to switch RPC: ' + e.message, 'error');
+  }
+}
+
 // ── Connect Wallet ──
 async function connectWallet() {
   if (!window.ethereum) {
@@ -1509,9 +1635,9 @@ function updateAddressUI() {
 async function refreshStats() {
   try {
     const [blockNum, feeData, bal] = await Promise.all([
-      provider.getBlockNumber(),
-      provider.getFeeData(),
-      provider.getBalance(userAddress)
+      readProvider.getBlockNumber(),
+      readProvider.getFeeData(),
+      readProvider.getBalance(userAddress)
     ]);
     balance = bal;
     const balFmt = parseFloat(ethers.formatEther(bal)).toFixed(4);
@@ -1540,12 +1666,12 @@ async function refreshStats() {
 // ── Sparkline Utilities ──
 async function fetchBlockTimesForChart() {
   try {
-    const latestBlock = await provider.getBlockNumber();
+    const latestBlock = await readProvider.getBlockNumber();
     const blocks = [];
     const count = 10;
     const steps = 2; // jump 2 blocks for wider span
     for (let i = 0; i < count; i++) {
-      blocks.push(provider.getBlock(latestBlock - i * steps));
+      blocks.push(readProvider.getBlock(latestBlock - i * steps));
     }
     const resolved = await Promise.all(blocks);
     const times = [];
@@ -1597,10 +1723,10 @@ async function doRefresh() {
 
 // ── Block Listener for real-time tx notifications ──
 function startBlockListener() {
-  if (!provider) return;
-  provider.on('block', async (blockNumber) => {
+  if (!readProvider) return;
+  readProvider.on('block', async (blockNumber) => {
     try {
-      const block = await provider.getBlock(blockNumber, true);
+      const block = await readProvider.getBlock(blockNumber, true);
       if (!block || !block.transactions) return;
       const addr = userAddress.toLowerCase();
       for (const tx of block.transactions) {
@@ -1629,7 +1755,7 @@ function startBlockListener() {
 // ── Poll Network ──
 async function pollNetwork() {
   try {
-    await provider.getBlockNumber();
+    await readProvider.getBlockNumber();
     document.getElementById('network-status-badge').className = 'status-badge online';
     document.getElementById('network-status-badge').innerHTML =
       '<span class="pulse-dot" style="width:5px;height:5px;"></span> Online';
@@ -1646,12 +1772,12 @@ async function loadTxHistory() {
   const el = document.getElementById('tx-list');
   el.innerHTML = '<div class="loading-state">Scanning recent blocks...</div>';
   try {
-    const latestBlock = await provider.getBlockNumber();
+    const latestBlock = await readProvider.getBlockNumber();
     const addr        = userAddress.toLowerCase();
     const txs         = [];
     for (let i = latestBlock; i > latestBlock - 100 && txs.length < 10; i--) {
       try {
-        const block = await provider.getBlock(i, true);
+        const block = await readProvider.getBlock(i, true);
         if (!block?.transactions) continue;
         for (const tx of block.transactions) {
           if (tx.from?.toLowerCase() === addr || tx.to?.toLowerCase() === addr) {
@@ -1791,7 +1917,9 @@ function disconnectWallet() {
   clearInterval(refreshInterval);
   clearInterval(networkPollInterval);
   clearInterval(countdownInterval);
-  if (provider && blockListener) provider.off('block');
+  if (readProvider && blockListener) {
+    try { readProvider.removeAllListeners('block'); } catch {}
+  }
   provider = signer = userAddress = balance = null;
   knownTxHashes.clear();
   document.getElementById('connect-screen').style.display = 'flex';
