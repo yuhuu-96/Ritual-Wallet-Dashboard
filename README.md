@@ -27,6 +27,7 @@ A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no
 |  **Quick Send** | Send RITUAL directly from the dashboard with MAX amount helper |
 |  **Address Book** | Local storage-based **contacts manager** to save frequently used addresses and nicknames |
 |  **Priority Gas Presets** | Choose transaction speeds (Slow/Standard/Fast) with a real-time **estimated fee calculator** |
+|  **NFT Gallery** | Automated **ERC-721 block logs scanner** and custom contract importer with IPFS & Base64 JSON metadata resolution |
 |  **Explorer Shortcut** | Direct link to Ritual Explorer for the connected address |
 |  **Mobile Responsive** | Fully optimized **responsive layouts & font scaling** for small and narrow screens |
 
