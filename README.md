@@ -10,29 +10,29 @@ A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---|---|
-| 🔗 **Wallet Connect** | MetaMask integration with **auto network add** for Ritual Testnet |
-| 💰 **Wallet Info** | Connected address, RITUAL balance, one-click copy with custom checkmark animation & disconnect |
-| 🌙 **Light/Dark Switcher** | Premium, buttery-smooth **Light/Dark mode switcher** with custom glassmorphic overrides & theme-responsive chart coloring |
-| 📡 **Network Stats** | Live block number, gas price, and green **Live dot indicator** synchronized with RPC |
-| 🔄 **RPC Switcher & Ping** | Interactive **Custom RPC switcher** with a built-in connection latency speed checker (latency/ping in ms) |
-| 🔄 **Activity Refresh** | Visual circular **countdown timer** showing upcoming refreshes |
-| 📈 **Block Time Sparkline** | Real-time **pure Canvas sparkline** tracking the last 20 block intervals with bezier curves & glow effects |
-| 📉 **Gas Price Sparkline** | Real-time **pure Canvas sparkline** showing the gas price trend over recent updates |
-| 📜 **Transaction History** | Last 10 txs for your wallet fetched via RPC (scans last 100 blocks) |
-| 💾 **CSV Exporter** | One-click **CSV exporter** to download parsed transaction history as a spreadsheet |
-| 📤 **Quick Send** | Send RITUAL directly from the dashboard with MAX amount helper |
-| 📖 **Address Book** | Local storage-based **contacts manager** to save frequently used addresses and nicknames |
-| ⚡ **Priority Gas Presets** | Choose transaction speeds (Slow/Standard/Fast) with a real-time **estimated fee calculator** |
-| 🔍 **Explorer Shortcut** | Direct link to Ritual Explorer for the connected address |
-| 📱 **Mobile Responsive** | Fully optimized **responsive layouts & font scaling** for small and narrow screens |
+|  **Wallet Connect** | MetaMask integration with **auto network add** for Ritual Testnet |
+|  **Wallet Info** | Connected address, RITUAL balance, one-click copy with custom checkmark animation & disconnect |
+|  **Light/Dark Switcher** | Premium, buttery-smooth **Light/Dark mode switcher** with custom glassmorphic overrides & theme-responsive chart coloring |
+|  **Network Stats** | Live block number, gas price, and green **Live dot indicator** synchronized with RPC |
+|  **RPC Switcher & Ping** | Interactive **Custom RPC switcher** with a built-in connection latency speed checker (latency/ping in ms) |
+|  **Activity Refresh** | Visual circular **countdown timer** showing upcoming refreshes |
+|  **Block Time Sparkline** | Real-time **pure Canvas sparkline** tracking the last 20 block intervals with bezier curves & glow effects |
+|  **Gas Price Sparkline** | Real-time **pure Canvas sparkline** showing the gas price trend over recent updates |
+|  **Transaction History** | Last 10 txs for your wallet fetched via RPC (scans last 100 blocks) |
+|  **CSV Exporter** | One-click **CSV exporter** to download parsed transaction history as a spreadsheet |
+|  **Quick Send** | Send RITUAL directly from the dashboard with MAX amount helper |
+|  **Address Book** | Local storage-based **contacts manager** to save frequently used addresses and nicknames |
+|  **Priority Gas Presets** | Choose transaction speeds (Slow/Standard/Fast) with a real-time **estimated fee calculator** |
+|  **Explorer Shortcut** | Direct link to Ritual Explorer for the connected address |
+|  **Mobile Responsive** | Fully optimized **responsive layouts & font scaling** for small and narrow screens |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Option 1 — Use the Live Demo
 Click here: [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
@@ -47,7 +47,7 @@ start index.html
 
 ---
 
-## 🌐 Network Configuration
+##  Network Configuration
 
 | Property | Value |
 |---|---|
@@ -61,7 +61,7 @@ start index.html
 
 ---
 
-## 🛠 How It Works
+## How It Works
 
 ```
 User opens page
@@ -79,7 +79,7 @@ Dashboard loads:
 
 ---
 
-## 🏗 Tech Stack
+## Tech Stack
 
 - **Pure HTML + CSS + JavaScript** — zero frameworks, zero dependencies
 - **[ethers.js v6](https://docs.ethers.org/v6/)** — loaded via CDN
@@ -88,7 +88,7 @@ Dashboard loads:
 
 ---
 
-## 📁 Files
+##  Files
 
 ```
 Ritual-Wallet-Dashboard/
@@ -101,7 +101,7 @@ Ritual-Wallet-Dashboard/
 
 ---
 
-## 🔗 Related
+##  Related
 
 - [Ritual Network](https://ritual.net/)
 - [Ritual Explorer](https://explorer.ritualfoundation.org)
