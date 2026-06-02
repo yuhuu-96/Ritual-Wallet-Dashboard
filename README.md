@@ -18,6 +18,7 @@ A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no
 | 💰 **Wallet Info** | Connected address, RITUAL balance, one-click copy with custom checkmark animation & disconnect |
 | 🌙 **Light/Dark Switcher** | Premium, buttery-smooth **Light/Dark mode switcher** with custom glassmorphic overrides & theme-responsive chart coloring |
 | 📡 **Network Stats** | Live block number, gas price, and green **Live dot indicator** synchronized with RPC |
+| 🔄 **RPC Switcher & Ping** | Interactive **Custom RPC switcher** with a built-in connection latency speed checker (latency/ping in ms) |
 | 🔄 **Activity Refresh** | Visual circular **countdown timer** showing upcoming refreshes |
 | 📈 **Block Time Sparkline** | Real-time **pure Canvas sparkline** tracking the last 20 block intervals with bezier curves & glow effects |
 | 📉 **Gas Price Sparkline** | Real-time **pure Canvas sparkline** showing the gas price trend over recent updates |
