@@ -1,42 +1,103 @@
 # Ritual Wallet Dashboard
 
+[![GitHub Pages](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-gold?style=for-the-badge&logo=github)](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
+[![Network](https://img.shields.io/badge/Network-Ritual%20Testnet-purple?style=for-the-badge)](https://ritual.net/)
+[![Chain ID](https://img.shields.io/badge/Chain%20ID-1979-blue?style=for-the-badge)]()
+
+> 🌐 **Live App:** [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
+
 A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no database — all data is fetched directly from the Ritual RPC node in real-time via the browser.
-
-## Features
-
-- 🔗 **Wallet Connect** — MetaMask integration with auto network add for Ritual Testnet
-- 💰 **Wallet Info** — Connected address, RITUAL balance, disconnect button
-- 📡 **Network Stats** — Live block number, gas price, and network status
-- 📜 **Transaction History** — Last 10 txs for your wallet fetched via RPC
-- 📤 **Quick Send** — Send RITUAL directly from the dashboard
-- 🔍 **Explorer Shortcut** — Direct link to Ritual Explorer
-
-## Network Info
-
-| Property | Value |
-|---|---|
-| Network Name | Ritual |
-| Chain ID | 1979 |
-| RPC URL | https://rpc.ritualfoundation.org |
-| Currency | RITUAL |
-| Explorer | https://explorer.ritualfoundation.org |
-
-## How to Use
-
-1. Open `ritual-wallet-dashboard.html` in your browser
-2. Click **Connect Wallet** — MetaMask will prompt to add the Ritual network automatically
-3. Your dashboard will populate with live data
-
-## Tech Stack
-
-- Pure HTML + CSS + JavaScript (no frameworks)
-- [ethers.js v6](https://docs.ethers.org/v6/) via CDN
-- MetaMask as wallet provider & signer
-
-## Project
-
-Built for the [Ritual Network](https://ritual.net/) testnet ecosystem.
 
 ---
 
-> *No API keys. No backend. Pure RPC.*
+## ✨ Features
+
+| Feature | Description |
+|---|---|
+| 🔗 **Wallet Connect** | MetaMask integration with **auto network add** for Ritual Testnet |
+| 💰 **Wallet Info** | Connected address, RITUAL balance, one-click copy & disconnect |
+| 📡 **Network Stats** | Live block number, gas price, and network status (auto-refresh every 12s) |
+| 📜 **Transaction History** | Last 10 txs for your wallet fetched via RPC (scans last 100 blocks) |
+| 📤 **Quick Send** | Send RITUAL directly from the dashboard with MAX amount helper |
+| 🔍 **Explorer Shortcut** | Direct link to Ritual Explorer for the connected address |
+
+---
+
+## 🚀 Quick Start
+
+### Option 1 — Use the Live Demo
+Click here: [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
+
+### Option 2 — Run Locally
+```bash
+git clone https://github.com/yuhuu-96/Ritual-Wallet-Dashboard.git
+cd Ritual-Wallet-Dashboard
+# Open index.html in your browser
+start index.html
+```
+
+---
+
+## 🌐 Network Configuration
+
+| Property | Value |
+|---|---|
+| **Network Name** | Ritual |
+| **Chain ID** | 1979 |
+| **RPC URL** | https://rpc.ritualfoundation.org |
+| **Currency Symbol** | RITUAL |
+| **Block Explorer** | https://explorer.ritualfoundation.org |
+
+> MetaMask will be prompted to **add this network automatically** when you click Connect.
+
+---
+
+## 🛠 How It Works
+
+```
+User opens page
+     ↓
+Clicks "Connect Wallet"
+     ↓
+MetaMask prompts → Add Ritual Network (Chain 1979) if not present
+     ↓
+Dashboard loads:
+  ├── Wallet balance (via RPC)
+  ├── Block number + gas price (live polling every 12s)
+  ├── Transaction history (scan last 100 blocks)
+  └── Explorer link
+```
+
+---
+
+## 🏗 Tech Stack
+
+- **Pure HTML + CSS + JavaScript** — zero frameworks, zero dependencies
+- **[ethers.js v6](https://docs.ethers.org/v6/)** — loaded via CDN
+- **MetaMask** — wallet provider & transaction signer
+- **Ritual RPC** — `https://rpc.ritualfoundation.org`
+
+---
+
+## 📁 Files
+
+```
+Ritual-Wallet-Dashboard/
+├── index.html                  # Main entry (GitHub Pages)
+├── ritual-wallet-dashboard.html # Dashboard source
+├── README.md
+├── .nojekyll                   # GitHub Pages config
+└── .gitignore
+```
+
+---
+
+## 🔗 Related
+
+- [Ritual Network](https://ritual.net/)
+- [Ritual Explorer](https://explorer.ritualfoundation.org)
+- [Ritual Testnet RPC](https://rpc.ritualfoundation.org)
+
+---
+
+> *No API keys. No backend. No database. Pure RPC calls.*
