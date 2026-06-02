@@ -765,6 +765,93 @@ header {
 .tx-notif-amount.in  { color: var(--green); }
 .tx-notif-amount.out { color: var(--red); }
 
+
+/* ── Chart Card ── */
+.chart-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+  margin-bottom: 28px;
+  transition: border-color 0.2s;
+}
+.chart-card:hover { border-color: var(--border-2); }
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border-1);
+}
+
+.chart-panel {
+  background: var(--bg-deep);
+  padding: 20px 24px;
+}
+
+.chart-panel-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.chart-panel-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 12px;
+  font-family: var(--font-ui);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.chart-panel-value span {
+  font-size: 11px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+canvas.sparkline {
+  width: 100%;
+  height: 60px;
+  display: block;
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px 14px;
+  border-top: 1px solid var(--border-1);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* sparkline mini inside stat card */
+.stat-sparkline {
+  height: 28px;
+  width: 100%;
+  margin-top: 8px;
+  display: block;
+}
+
 </style>
 </head>
 <body>
@@ -846,6 +933,44 @@ header {
         <div class="stat-label">Network Status</div>
         <div class="stat-value green" id="stat-status">Online</div>
         <div class="stat-sub" id="stat-chain">Chain 1979</div>
+      </div>
+    </div>
+
+
+    <!-- Mini Charts -->
+    <div class="chart-card" id="chart-section" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px 0;">
+        <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-1);">Block Activity</span>
+        <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);" id="chart-blocks-label">—</span>
+      </div>
+      <div class="chart-grid" style="margin:12px 0 0;">
+        <div class="chart-panel">
+          <div class="chart-panel-title">Block Time</div>
+          <div class="chart-panel-value">
+            <span id="chart-avg-blocktime">—</span>
+            <span>sec avg</span>
+          </div>
+          <canvas class="sparkline" id="canvas-blocktime" width="400" height="60"></canvas>
+        </div>
+        <div class="chart-panel">
+          <div class="chart-panel-title">Gas Price Trend</div>
+          <div class="chart-panel-value">
+            <span id="chart-avg-gas">—</span>
+            <span>Gwei avg</span>
+          </div>
+          <canvas class="sparkline" id="canvas-gas" width="400" height="60"></canvas>
+        </div>
+      </div>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--gold-1);"></div>
+          Last 20 blocks
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:var(--purple);"></div>
+          Gas history
+        </div>
+        <div style="margin-left:auto;font-family:var(--font-mono);font-size:10px;color:var(--text-3);">Live · auto-update</div>
       </div>
     </div>
 
@@ -987,7 +1112,134 @@ header {
 <div class="toast" id="toast"></div>
 
 <!-- Ethers.js v6 CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js">
+
+// =====================================================
+// CHART ENGINE — Pure Canvas Sparklines
+// =====================================================
+
+const blockTimestamps = []; // store last 20 block timestamps
+const gasHistory      = []; // store gas price history
+const MAX_POINTS      = 20;
+
+function drawSparkline(canvasId, data, color, fillColor) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || data.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const W   = canvas.offsetWidth  || 400;
+  const H   = canvas.offsetHeight || 60;
+  canvas.width  = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  ctx.clearRect(0, 0, W, H);
+
+  const min  = Math.min(...data);
+  const max  = Math.max(...data);
+  const range = max - min || 1;
+  const pad  = { t: 8, b: 8, l: 4, r: 4 };
+  const w    = W - pad.l - pad.r;
+  const h    = H - pad.t - pad.b;
+
+  const pts = data.map((v, i) => ({
+    x: pad.l + (i / (data.length - 1)) * w,
+    y: pad.t + (1 - (v - min) / range) * h
+  }));
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b);
+  grad.addColorStop(0, fillColor.replace(')', ', 0.35)').replace('rgb', 'rgba'));
+  grad.addColorStop(1, fillColor.replace(')', ', 0)').replace('rgb', 'rgba'));
+
+  // Draw fill
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, H - pad.b);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length - 1].x, H - pad.b);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Draw line (smooth)
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    const cp1x = (pts[i-1].x + pts[i].x) / 2;
+    ctx.bezierCurveTo(cp1x, pts[i-1].y, cp1x, pts[i].y, pts[i].x, pts[i].y);
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth   = 1.8;
+  ctx.lineJoin    = 'round';
+  ctx.stroke();
+
+  // Draw last dot
+  const last = pts[pts.length - 1];
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // Glow on last dot
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 6, 0, Math.PI * 2);
+  ctx.fillStyle = fillColor.replace(')', ', 0.25)').replace('rgb', 'rgba');
+  ctx.fill();
+}
+
+async function fetchBlockTimesForChart() {
+  if (!provider || !userAddress) return;
+  try {
+    const latest = await provider.getBlockNumber();
+    const promises = [];
+    for (let i = latest; i > latest - MAX_POINTS; i--) {
+      promises.push(provider.getBlock(i));
+    }
+    const blocks = (await Promise.all(promises)).filter(Boolean).reverse();
+
+    // Calculate block times
+    const times = [];
+    for (let i = 1; i < blocks.length; i++) {
+      const diff = Number(blocks[i].timestamp) - Number(blocks[i-1].timestamp);
+      if (diff > 0 && diff < 120) times.push(diff);
+    }
+
+    if (times.length > 0) {
+      const avg = (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1);
+      document.getElementById('chart-avg-blocktime').textContent = avg;
+      document.getElementById('chart-blocks-label').textContent  =
+        'Block #' + latest.toLocaleString() + ' · ' + blocks.length + ' blocks sampled';
+      drawSparkline('canvas-blocktime', times, '#c8b98a', 'rgb(200, 185, 138)');
+    }
+  } catch(e) { /* silent */ }
+}
+
+function updateGasChart(gasGweiValue) {
+  const val = parseFloat(gasGweiValue);
+  if (isNaN(val) || val <= 0) return;
+  gasHistory.push(val);
+  if (gasHistory.length > MAX_POINTS) gasHistory.shift();
+  if (gasHistory.length >= 2) {
+    const avg = (gasHistory.reduce((a,b)=>a+b,0)/gasHistory.length).toFixed(2);
+    const el = document.getElementById('chart-avg-gas');
+    if (el) el.textContent = avg;
+    drawSparkline('canvas-gas', gasHistory, '#a78bfa', 'rgb(167, 139, 250)');
+  }
+}
+
+async function initCharts() {
+  const section = document.getElementById('chart-section');
+  if (section) section.style.display = 'block';
+  await fetchBlockTimesForChart();
+}
+
+// Resize sparklines on window resize
+window.addEventListener('resize', () => {
+  if (!provider) return;
+  const times = []; // re-draw with existing data
+  drawSparkline('canvas-gas', gasHistory, '#a78bfa', 'rgb(167, 139, 250)');
+});
+
+</script>
 
 <script>
 // =====================================================
@@ -1071,8 +1323,10 @@ async function connectWallet() {
     await loadTxHistory();
     startCountdown();
     refreshInterval     = setInterval(doRefresh, 12000);
+    setInterval(fetchBlockTimesForChart, 60000);
     networkPollInterval = setInterval(pollNetwork, 7000);
     startBlockListener();
+    setTimeout(initCharts, 1500);
 
     window.ethereum.on('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
     window.ethereum.on('chainChanged', () => location.reload());
@@ -1107,6 +1361,7 @@ async function refreshStats() {
       : '—';
 
     document.getElementById('stat-balance').textContent   = balFmt;
+    updateGasChart(gasGwei);
     document.getElementById('stat-block').textContent     = blockNum.toLocaleString();
     document.getElementById('stat-gas').textContent       = gasGwei;
     document.getElementById('stat-status').textContent    = 'Online';
