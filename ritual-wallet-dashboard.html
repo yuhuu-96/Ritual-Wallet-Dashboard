@@ -662,6 +662,109 @@ header {
   .connect-title { font-size: 26px; }
   .stats-bar { grid-template-columns: 1fr 1fr; border-radius: var(--r-md); }
 }
+
+/* ── Countdown refresh badge ── */
+.refresh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+}
+.refresh-badge .cd { color: var(--gold-1); }
+
+/* ── Notification bell ── */
+.notif-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 10px;
+  height: 10px;
+  background: var(--red);
+  border-radius: 50%;
+  border: 2px solid var(--bg-base);
+  animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes pop-in {
+  from { transform: scale(0); }
+  to   { transform: scale(1); }
+}
+
+/* ── New tx flash ── */
+@keyframes tx-flash {
+  0%   { background: rgba(200,185,138,0.15); }
+  100% { background: transparent; }
+}
+.tx-new { animation: tx-flash 1.5s ease-out forwards; }
+
+/* ── Copy success ── */
+.icon-btn.copied {
+  color: var(--green) !important;
+  border-color: rgba(74,222,128,0.4) !important;
+}
+
+/* ── Live indicator ── */
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse-anim 1.5s ease-in-out infinite;
+  margin-right: 4px;
+}
+
+/* ── Tx notification popup ── */
+.tx-notif {
+  position: fixed;
+  bottom: 80px;
+  right: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-accent);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+  z-index: 9998;
+  max-width: 300px;
+  backdrop-filter: blur(20px);
+  transform: translateX(120%);
+  opacity: 0;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-family: var(--font-mono);
+}
+.tx-notif.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+.tx-notif-title {
+  font-size: 11px;
+  color: var(--gold-1);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tx-notif-body {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.tx-notif-amount {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.tx-notif-amount.in  { color: var(--green); }
+.tx-notif-amount.out { color: var(--red); }
+
 </style>
 </head>
 <body>
@@ -715,6 +818,14 @@ header {
   <div id="dashboard">
 
     <!-- Stats Bar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;color:var(--text-3);">
+        <span class="live-dot"></span> Live data
+      </div>
+      <div class="refresh-badge">
+        Refresh in <span class="cd" id="countdown">12</span>s
+      </div>
+    </div>
     <div class="stats-bar">
       <div class="stat-card">
         <div class="stat-label">RITUAL Balance</div>
@@ -862,6 +973,16 @@ header {
 
 </div><!-- /wrap -->
 
+
+<!-- Transaction Notification -->
+<div class="tx-notif" id="tx-notif">
+  <div class="tx-notif-title">
+    <span>🔔</span> New Transaction
+  </div>
+  <div class="tx-notif-body" id="tx-notif-body">—</div>
+  <div class="tx-notif-amount" id="tx-notif-amount">—</div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
@@ -874,7 +995,7 @@ header {
 // =====================================================
 
 const RITUAL_CHAIN = {
-  chainId:          '0x7BB', // 1979 in hex
+  chainId:          '0x7BB',
   chainName:        'Ritual',
   nativeCurrency:   { name: 'RITUAL', symbol: 'RITUAL', decimals: 18 },
   rpcUrls:          ['https://rpc.ritualfoundation.org'],
@@ -885,9 +1006,11 @@ const RPC_URL    = 'https://rpc.ritualfoundation.org';
 const CHAIN_ID   = 1979;
 
 let provider, signer, userAddress, balance;
-let refreshInterval, networkPollInterval;
+let refreshInterval, networkPollInterval, countdownInterval, blockListener;
+let countdownSec = 12;
+let knownTxHashes = new Set();
 
-// ── Toast notification ──
+// ── Toast ──
 function showToast(msg, type = 'info') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -896,22 +1019,32 @@ function showToast(msg, type = 'info') {
   setTimeout(() => t.classList.remove('show'), 3500);
 }
 
+// ── Tx Notification popup ──
+function showTxNotif(direction, amount, from, to) {
+  const n = document.getElementById('tx-notif');
+  const body = document.getElementById('tx-notif-body');
+  const amtEl = document.getElementById('tx-notif-amount');
+  const isIn = direction === 'in';
+  body.textContent = isIn
+    ? 'Received from ' + from.slice(0,10) + '...'
+    : 'Sent to ' + (to ? to.slice(0,10) + '...' : 'Contract');
+  amtEl.textContent = (isIn ? '+' : '−') + parseFloat(amount).toFixed(4) + ' RITUAL';
+  amtEl.className = 'tx-notif-amount ' + direction;
+  n.classList.add('show');
+  setTimeout(() => n.classList.remove('show'), 5000);
+}
+
 // ── Connect Wallet ──
 async function connectWallet() {
   if (!window.ethereum) {
     showToast('MetaMask not found. Please install it.', 'error');
     return;
   }
-
   const btn = document.getElementById('connect-btn');
   btn.textContent = 'Connecting...';
   btn.disabled = true;
-
   try {
-    // Request accounts
     await window.ethereum.request({ method: 'eth_requestAccounts' });
-
-    // Switch or add Ritual network
     try {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
@@ -923,39 +1056,27 @@ async function connectWallet() {
           method: 'wallet_addEthereumChain',
           params: [RITUAL_CHAIN]
         });
-      } else {
-        throw switchErr;
-      }
+      } else throw switchErr;
     }
-
-    // Setup provider
-    provider = new ethers.BrowserProvider(window.ethereum);
-    signer   = await provider.getSigner();
+    provider   = new ethers.BrowserProvider(window.ethereum);
+    signer     = await provider.getSigner();
     userAddress = await signer.getAddress();
 
-    // UI switch
     document.getElementById('connect-screen').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('dashboard').style.display      = 'block';
     document.getElementById('disconnect-btn').style.display = 'flex';
 
-    // Populate
     updateAddressUI();
     await refreshStats();
     await loadTxHistory();
+    startCountdown();
+    refreshInterval     = setInterval(doRefresh, 12000);
+    networkPollInterval = setInterval(pollNetwork, 7000);
+    startBlockListener();
 
-    // Polling
-    refreshInterval      = setInterval(refreshStats, 12000);
-    networkPollInterval  = setInterval(pollNetwork, 7000);
-
-    // Listen for account change
-    window.ethereum.on('accountsChanged', (accounts) => {
-      if (accounts.length === 0) disconnectWallet();
-      else { location.reload(); }
-    });
+    window.ethereum.on('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
     window.ethereum.on('chainChanged', () => location.reload());
-
     showToast('Wallet connected!', 'success');
-
   } catch (e) {
     showToast(e.message || 'Connection failed', 'error');
     btn.textContent = 'Connect Wallet';
@@ -963,9 +1084,8 @@ async function connectWallet() {
   }
 }
 
-// ── Update address UI ──
+// ── Address UI ──
 function updateAddressUI() {
-  const short = userAddress.slice(0,8) + '...' + userAddress.slice(-6);
   document.getElementById('wallet-addr-display').innerHTML =
     `<span style="color:var(--gold-2)">${userAddress.slice(0,10)}</span>${userAddress.slice(10,-6)}<span style="color:var(--gold-2)">${userAddress.slice(-6)}</span>`;
   document.getElementById('wallet-full-addr').textContent = userAddress;
@@ -980,35 +1100,75 @@ async function refreshStats() {
       provider.getFeeData(),
       provider.getBalance(userAddress)
     ]);
-
     balance = bal;
-    const balFormatted = parseFloat(ethers.formatEther(bal)).toFixed(4);
-    const gasGwei      = feeData.gasPrice
-      ? (parseFloat(ethers.formatUnits(feeData.gasPrice, 'gwei'))).toFixed(2)
+    const balFmt = parseFloat(ethers.formatEther(bal)).toFixed(4);
+    const gasGwei = feeData.gasPrice
+      ? parseFloat(ethers.formatUnits(feeData.gasPrice, 'gwei')).toFixed(2)
       : '—';
 
-    // Stats bar
-    document.getElementById('stat-balance').textContent  = balFormatted;
-    document.getElementById('stat-block').textContent    = blockNum.toLocaleString();
-    document.getElementById('stat-gas').textContent      = gasGwei;
-    document.getElementById('stat-status').textContent   = 'Online';
-    document.getElementById('stat-status').className     = 'stat-value green';
-
-    // Sidebar
-    document.getElementById('net-block').textContent = blockNum.toLocaleString();
-    document.getElementById('net-gas').textContent   = gasGwei + ' Gwei';
-
-    // Wallet detail
-    document.getElementById('wallet-balance-detail').textContent = balFormatted;
-
+    document.getElementById('stat-balance').textContent   = balFmt;
+    document.getElementById('stat-block').textContent     = blockNum.toLocaleString();
+    document.getElementById('stat-gas').textContent       = gasGwei;
+    document.getElementById('stat-status').textContent    = 'Online';
+    document.getElementById('stat-status').className      = 'stat-value green';
+    document.getElementById('net-block').textContent      = blockNum.toLocaleString();
+    document.getElementById('net-gas').textContent        = gasGwei + ' Gwei';
+    document.getElementById('wallet-balance-detail').textContent = balFmt;
   } catch(e) {
     document.getElementById('stat-status').textContent = 'Error';
-    document.getElementById('stat-status').className   = 'stat-value';
     document.getElementById('stat-status').style.color = 'var(--red)';
   }
 }
 
-// ── Poll network connectivity ──
+// ── Countdown & doRefresh ──
+function startCountdown() {
+  countdownSec = 12;
+  clearInterval(countdownInterval);
+  countdownInterval = setInterval(() => {
+    countdownSec = Math.max(0, countdownSec - 1);
+    const el = document.getElementById('countdown');
+    if (el) el.textContent = countdownSec;
+  }, 1000);
+}
+
+async function doRefresh() {
+  await refreshStats();
+  countdownSec = 12;
+  startCountdown();
+}
+
+// ── Block Listener for real-time tx notifications ──
+function startBlockListener() {
+  if (!provider) return;
+  provider.on('block', async (blockNumber) => {
+    try {
+      const block = await provider.getBlock(blockNumber, true);
+      if (!block || !block.transactions) return;
+      const addr = userAddress.toLowerCase();
+      for (const tx of block.transactions) {
+        if (knownTxHashes.has(tx.hash)) continue;
+        if (tx.from?.toLowerCase() === addr || tx.to?.toLowerCase() === addr) {
+          knownTxHashes.add(tx.hash);
+          const isIn = tx.to?.toLowerCase() === addr;
+          const amt  = ethers.formatEther(tx.value || 0n);
+          showTxNotif(
+            isIn ? 'in' : 'out',
+            amt,
+            tx.from,
+            tx.to
+          );
+          // Refresh after short delay
+          setTimeout(async () => {
+            await refreshStats();
+            await loadTxHistory();
+          }, 2000);
+        }
+      }
+    } catch { /* skip */ }
+  });
+}
+
+// ── Poll Network ──
 async function pollNetwork() {
   try {
     await provider.getBlockNumber();
@@ -1023,126 +1183,126 @@ async function pollNetwork() {
   }
 }
 
-// ── Load Transaction History ──
+// ── Load TX History ──
 async function loadTxHistory() {
   const el = document.getElementById('tx-list');
-  el.innerHTML = '<div class="loading-state">Scanning blocks...</div>';
-
+  el.innerHTML = '<div class="loading-state">Scanning recent blocks...</div>';
   try {
     const latestBlock = await provider.getBlockNumber();
     const addr        = userAddress.toLowerCase();
     const txs         = [];
-    const scanBlocks  = 100;
-
-    for (let i = latestBlock; i > latestBlock - scanBlocks && txs.length < 10; i--) {
+    for (let i = latestBlock; i > latestBlock - 100 && txs.length < 10; i--) {
       try {
         const block = await provider.getBlock(i, true);
-        if (!block || !block.transactions) continue;
+        if (!block?.transactions) continue;
         for (const tx of block.transactions) {
           if (tx.from?.toLowerCase() === addr || tx.to?.toLowerCase() === addr) {
             txs.push({ ...tx, blockTimestamp: block.timestamp });
+            knownTxHashes.add(tx.hash);
             if (txs.length >= 10) break;
           }
         }
-      } catch { /* skip bad blocks */ }
+      } catch { /* skip */ }
     }
-
-    if (txs.length === 0) {
-      el.innerHTML = '<div class="empty-state">No transactions found in last ' + scanBlocks + ' blocks.</div>';
+    if (!txs.length) {
+      el.innerHTML = '<div class="empty-state">No transactions in last 100 blocks.</div>';
       return;
     }
-
     el.innerHTML = txs.map(tx => {
-      const isOut   = tx.from?.toLowerCase() === addr;
-      const dir     = tx.to ? (isOut ? 'out' : 'in') : 'ctr';
-      const icon    = dir === 'out' ? '↑' : dir === 'in' ? '↓' : '◈';
-      const val     = tx.value ? parseFloat(ethers.formatEther(tx.value)).toFixed(4) : '0.0000';
-      const shortH  = tx.hash.slice(0,10) + '...' + tx.hash.slice(-6);
-      const peer    = isOut
-        ? (tx.to ? tx.to.slice(0,8) + '...' : 'Contract Deploy')
-        : (tx.from ? tx.from.slice(0,8) + '...' : '—');
-      const timeAgo = tx.blockTimestamp
-        ? getTimeAgo(Number(tx.blockTimestamp))
-        : '';
+      const isOut  = tx.from?.toLowerCase() === addr;
+      const dir    = tx.to ? (isOut ? 'out' : 'in') : 'ctr';
+      const icon   = dir === 'out' ? '↑' : dir === 'in' ? '↓' : '◈';
+      const val    = parseFloat(ethers.formatEther(tx.value || 0n)).toFixed(4);
+      const shortH = tx.hash.slice(0,10) + '...' + tx.hash.slice(-6);
+      const peer   = isOut
+        ? (tx.to ? tx.to.slice(0,8)+'...' : 'Contract')
+        : (tx.from ? tx.from.slice(0,8)+'...' : '—');
+      const time   = tx.blockTimestamp ? getTimeAgo(Number(tx.blockTimestamp)) : '';
       return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${tx.hash}','_blank')">
         <div class="tx-badge ${dir}">${icon}</div>
         <div class="tx-info">
           <div class="tx-hash">${shortH}</div>
-          <div class="tx-meta">${isOut ? 'To' : 'From'}: ${peer}${timeAgo ? ' · ' + timeAgo : ''}</div>
+          <div class="tx-meta">${isOut?'To':'From'}: ${peer}${time?' · '+time:''}</div>
         </div>
-        <div class="tx-amount ${dir === 'ctr' ? '' : dir}">${isOut ? '−' : '+'}${val} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
+        <div class="tx-amount ${dir==='ctr'?'':dir}">${isOut?'−':'+'}${val} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
       </div>`;
     }).join('');
-
-  } catch(e) {
-    el.innerHTML = '<div class="empty-state">Could not load transactions. RPC may be slow.</div>';
+  } catch {
+    el.innerHTML = '<div class="empty-state">Could not load. RPC may be slow.</div>';
   }
 }
 
-function getTimeAgo(timestamp) {
-  const diff = Math.floor(Date.now() / 1000) - timestamp;
-  if (diff < 60)   return diff + 's ago';
-  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-  if (diff < 86400)return Math.floor(diff/3600) + 'h ago';
-  return Math.floor(diff/86400) + 'd ago';
+function getTimeAgo(ts) {
+  const d = Math.floor(Date.now()/1000) - ts;
+  if (d < 60)    return d+'s ago';
+  if (d < 3600)  return Math.floor(d/60)+'m ago';
+  if (d < 86400) return Math.floor(d/3600)+'h ago';
+  return Math.floor(d/86400)+'d ago';
 }
 
-// ── Send Transaction ──
+// ── Send ──
 async function sendTransaction() {
-  const to        = document.getElementById('send-to').value.trim();
-  const amountStr = document.getElementById('send-amount').value.trim();
-  const btn       = document.getElementById('send-btn');
-
-  if (!to || !ethers.isAddress(to)) { showToast('Invalid recipient address', 'error'); return; }
-  if (!amountStr || isNaN(amountStr) || parseFloat(amountStr) <= 0) { showToast('Enter a valid amount', 'error'); return; }
-
-  btn.textContent = 'Waiting for confirmation...';
-  btn.disabled    = true;
-
+  const to  = document.getElementById('send-to').value.trim();
+  const amt = document.getElementById('send-amount').value.trim();
+  const btn = document.getElementById('send-btn');
+  if (!to || !ethers.isAddress(to))                  { showToast('Invalid address','error'); return; }
+  if (!amt || isNaN(amt) || parseFloat(amt) <= 0)    { showToast('Invalid amount','error'); return; }
+  btn.textContent = 'Waiting for MetaMask...';
+  btn.disabled = true;
   try {
     showToast('Confirm in MetaMask...', 'info');
-    const value = ethers.parseEther(amountStr);
-    const tx    = await signer.sendTransaction({ to, value });
-    showToast('Transaction sent! Awaiting block...', 'info');
+    const tx = await signer.sendTransaction({ to, value: ethers.parseEther(amt) });
+    showToast('Sent! Waiting for block...', 'info');
     await tx.wait();
-    showToast('Transaction confirmed!', 'success');
+    showToast('Confirmed! ✓', 'success');
     document.getElementById('send-to').value     = '';
     document.getElementById('send-amount').value = '';
     await refreshStats();
     await loadTxHistory();
-  } catch (e) {
-    showToast(e.reason || e.message || 'Transaction failed', 'error');
+  } catch(e) {
+    showToast(e.reason || e.message || 'Failed', 'error');
   } finally {
     btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Send RITUAL';
-    btn.disabled  = false;
+    btn.disabled = false;
   }
 }
 
-// ── Max amount ──
+// ── Max ──
 function setMaxAmount() {
   if (!balance) return;
-  const gasReserve = ethers.parseEther('0.001');
-  const max = balance > gasReserve ? balance - gasReserve : 0n;
+  const reserve = ethers.parseEther('0.001');
+  const max = balance > reserve ? balance - reserve : 0n;
   document.getElementById('send-amount').value = parseFloat(ethers.formatEther(max)).toFixed(6);
 }
 
-// ── Copy address ──
+// ── Copy with animation ──
 function copyAddress() {
   if (!userAddress) return;
-  navigator.clipboard.writeText(userAddress)
-    .then(() => showToast('Address copied to clipboard!', 'success'))
-    .catch(() => showToast('Copy failed', 'error'));
+  navigator.clipboard.writeText(userAddress).then(() => {
+    showToast('Address copied!', 'success');
+    const btn = document.getElementById('copy-btn');
+    btn.classList.add('copied');
+    const origHTML = btn.innerHTML;
+    btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = origHTML;
+    }, 2000);
+  }).catch(() => showToast('Copy failed', 'error'));
 }
 
 // ── Disconnect ──
 function disconnectWallet() {
   clearInterval(refreshInterval);
   clearInterval(networkPollInterval);
+  clearInterval(countdownInterval);
+  if (provider && blockListener) provider.off('block');
   provider = signer = userAddress = balance = null;
+  knownTxHashes.clear();
   document.getElementById('connect-screen').style.display = 'flex';
   document.getElementById('dashboard').style.display      = 'none';
   document.getElementById('disconnect-btn').style.display = 'none';
-  showToast('Wallet disconnected', 'info');
+  showToast('Disconnected', 'info');
 }
 </script>
 
