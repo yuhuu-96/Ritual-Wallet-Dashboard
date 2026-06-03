@@ -1139,6 +1139,52 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
   text-transform: uppercase;
 }
 
+
+/* ── Wallet Picker Modal ── */
+#wallet-modal {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+  animation: fadeInOverlay 0.2s ease;
+}
+@keyframes fadeInOverlay { from { opacity:0; } to { opacity:1; } }
+.wallet-modal-box {
+  background: linear-gradient(135deg, #141420 0%, #1a1a2e 100%);
+  border: 1px solid rgba(201,168,76,0.25);
+  border-radius: 20px;
+  padding: 24px;
+  width: 380px;
+  max-width: 92vw;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.1);
+  animation: slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+.wallet-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+  font-size: 16px; font-weight: 700; letter-spacing: 0.05em;
+  color: var(--text-1);
+}
+.wallet-list { display: flex; flex-direction: column; gap: 8px; }
+.wallet-option {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; padding: 12px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  cursor: pointer; color: var(--text-1);
+  font-size: 15px; font-weight: 500;
+  transition: all 0.18s ease;
+  text-align: left;
+}
+.wallet-option:hover {
+  background: rgba(201,168,76,0.1);
+  border-color: rgba(201,168,76,0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(201,168,76,0.1);
+}
+.wallet-option:hover .wallet-name { color: var(--gold-1); }
+.wallet-name { flex: 1; }
 </style>
 </head>
 <body>
@@ -1201,8 +1247,20 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
       Connect Wallet
     </button>
     <p style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);letter-spacing:0.1em;">
-      Requires MetaMask · No backend · Pure RPC
+      MetaMask · OKX · Phantom · Rabby · Trust &amp; more
     </p>
+
+    <!-- ── Wallet Picker Modal ── -->
+    <div id="wallet-modal" style="display:none;" onclick="if(event.target===this)closeWalletModal()">
+      <div class="wallet-modal-box">
+        <div class="wallet-modal-header">
+          <span>Choose Wallet</span>
+          <button onclick="closeWalletModal()" style="background:none;border:none;color:var(--text-2);font-size:20px;cursor:pointer;line-height:1;">&#10005;</button>
+        </div>
+        <div id="wallet-list" class="wallet-list"></div>
+        <p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:12px;">Don't see your wallet? Make sure the extension is installed.</p>
+      </div>
+    </div>
   </div>
 
   <!-- ===================== DASHBOARD ===================== -->
@@ -2068,53 +2126,164 @@ async function switchRpc(rpcUrl) {
 }
 
 // ── Connect Wallet ──
-async function connectWallet() {
-  if (!window.ethereum) {
-    showToast('MetaMask not found. Please install it.', 'error');
+// ── EIP-6963 Multi-wallet Provider Store ──
+const walletProviders = new Map(); // uuid → { info, provider }
+
+window.addEventListener('eip6963:announceProvider', (event) => {
+  const { info, provider } = event.detail;
+  walletProviders.set(info.uuid, { info, provider });
+});
+window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+// Known wallet detection via window properties (legacy EIP-1193)
+function detectLegacyWallets() {
+  const found = [];
+  const eth = window.ethereum;
+  if (!eth) return found;
+
+  // Multi-provider array (some wallets inject here)
+  const providers = eth.providers || [eth];
+  providers.forEach(p => {
+    if (p.isMetaMask && !p.isOKExWallet && !p.isRabby) {
+      found.push({ info: { name: 'MetaMask', icon: 'metamask', uuid: 'metamask-legacy' }, provider: p });
+    }
+    if (p.isOKExWallet || p.isOKX) {
+      found.push({ info: { name: 'OKX Wallet', icon: 'okx', uuid: 'okx-legacy' }, provider: p });
+    }
+    if (p.isPhantom) {
+      found.push({ info: { name: 'Phantom', icon: 'phantom', uuid: 'phantom-legacy' }, provider: p });
+    }
+    if (p.isRabby) {
+      found.push({ info: { name: 'Rabby Wallet', icon: 'rabby', uuid: 'rabby-legacy' }, provider: p });
+    }
+    if (p.isTrust || p.isTrustWallet) {
+      found.push({ info: { name: 'Trust Wallet', icon: 'trust', uuid: 'trust-legacy' }, provider: p });
+    }
+    if (p.isBraveWallet) {
+      found.push({ info: { name: 'Brave Wallet', icon: 'brave', uuid: 'brave-legacy' }, provider: p });
+    }
+    if (p.isCoinbaseWallet || p.isCoinbaseBrowser) {
+      found.push({ info: { name: 'Coinbase Wallet', icon: 'coinbase', uuid: 'coinbase-legacy' }, provider: p });
+    }
+  });
+
+  // Also check window.okxwallet
+  if (window.okxwallet && !found.find(f => f.info.uuid === 'okx-legacy')) {
+    found.push({ info: { name: 'OKX Wallet', icon: 'okx', uuid: 'okx-window' }, provider: window.okxwallet });
+  }
+  if (window.phantom?.ethereum && !found.find(f => f.info.uuid === 'phantom-legacy')) {
+    found.push({ info: { name: 'Phantom', icon: 'phantom', uuid: 'phantom-window' }, provider: window.phantom.ethereum });
+  }
+
+  // Generic fallback — any unlabeled injected provider
+  if (found.length === 0 && eth) {
+    found.push({ info: { name: 'Browser Wallet', icon: 'generic', uuid: 'generic-legacy' }, provider: eth });
+  }
+  return found;
+}
+
+const WALLET_ICONS = {
+  metamask: `<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path fill="#E17726" d="M34.4 4L21.6 13.3l2.4-5.7z"/><path fill="#E27625" d="M5.6 4l12.7 9.4-2.3-5.8z"/><path fill="#E27625" d="M29.7 27.2l-3.4 5.2 7.3 2 2.1-7.1z"/><path fill="#E27625" d="M4.3 27.3l2.1 7.1 7.3-2-3.4-5.2z"/><path fill="#E27625" d="M13.3 17.8L11.2 21l7.2.3-.2-7.8z"/><path fill="#E27625" d="M26.7 17.8l-5-4.4-.2 7.9 7.2-.3z"/><path fill="#E27625" d="M13.7 32.4l4.4-2.1-3.8-3z"/><path fill="#E27625" d="M21.9 30.3l4.4 2.1-.6-5.1z"/></svg>`,
+  okx: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#000"/><path d="M15.5 10h-5A.5.5 0 0 0 10 10.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm14 0h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm-7 7h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm-7 7h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm14 0h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5z" fill="#fff"/></svg>`,
+  phantom: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#551bf9"/><path d="M29.9 20.9c0 5.2-4.2 9.1-9.9 9.1-5.4 0-9.8-4-9.8-9s4.4-9.1 9.8-9.1c.8 0 1.5.1 2.2.2-.3.7-.5 1.4-.5 2.2 0 3.3 2.6 5.9 5.9 5.9.8 0 1.6-.2 2.3-.5v1.2z" fill="#fff"/></svg>`,
+  rabby: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#7B4FF5"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="18" font-weight="bold">R</text></svg>`,
+  trust: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#3375BB"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="18" font-weight="bold">T</text></svg>`,
+  brave: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#FB542B"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="16" font-weight="bold">B</text></svg>`,
+  coinbase: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#0052FF"/><circle cx="20" cy="20" r="10" fill="white"/><circle cx="20" cy="20" r="5" fill="#0052FF"/></svg>`,
+  generic: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#333"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="20">👛</text></svg>`
+};
+
+function getWalletIcon(wallet) {
+  // EIP-6963 wallets have their own icon (data URI)
+  if (wallet.info.icon && wallet.info.icon.startsWith('data:')) {
+    return `<img src="${wallet.info.icon}" width="36" height="36" style="border-radius:8px;">`;
+  }
+  const key = wallet.info.icon || 'generic';
+  return `<span style="width:36px;height:36px;display:inline-flex;border-radius:8px;overflow:hidden;">${WALLET_ICONS[key] || WALLET_ICONS.generic}</span>`;
+}
+
+function openWalletModal() {
+  const modal = document.getElementById('wallet-modal');
+  const list  = document.getElementById('wallet-list');
+  modal.style.display = 'flex';
+
+  // Collect wallets: EIP-6963 first, then legacy
+  const all = new Map();
+  walletProviders.forEach((w, uuid) => all.set(uuid, w));
+  detectLegacyWallets().forEach(w => {
+    if (!all.has(w.info.uuid)) all.set(w.info.uuid, w);
+  });
+
+  if (all.size === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:24px;opacity:0.6;">
+      <p>No wallet extension detected.</p>
+      <p style="margin-top:8px;font-size:12px;">Install <a href="https://metamask.io" target="_blank" style="color:var(--gold-1);">MetaMask</a>, <a href="https://www.okx.com/web3" target="_blank" style="color:var(--gold-1);">OKX</a>, or <a href="https://phantom.app" target="_blank" style="color:var(--gold-1);">Phantom</a>.</p>
+    </div>`;
     return;
   }
+
+  list.innerHTML = Array.from(all.values()).map(w => `
+    <button class="wallet-option" onclick="connectWithProvider('${w.info.uuid}')">
+      ${getWalletIcon(w)}
+      <span class="wallet-name">${w.info.name}</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:auto;opacity:0.4;"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>`).join('');
+
+  // Store all found providers for later use
+  window._allWallets = all;
+}
+
+function closeWalletModal() {
+  document.getElementById('wallet-modal').style.display = 'none';
+}
+
+async function connectWithProvider(uuid) {
+  closeWalletModal();
+  const wallet = window._allWallets?.get(uuid);
+  if (!wallet) { showToast('Wallet not found', 'error'); return; }
+
   const btn = document.getElementById('connect-btn');
-  btn.textContent = 'Connecting...';
+  btn.innerHTML = '<span style="opacity:0.7">Connecting...</span>';
   btn.disabled = true;
+
   try {
-    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const walletProvider = wallet.provider;
+
+    await walletProvider.request({ method: 'eth_requestAccounts' });
+
+    // Switch to Ritual chain
     try {
-      await window.ethereum.request({
+      await walletProvider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: RITUAL_CHAIN.chainId }]
       });
     } catch (switchErr) {
-      if (switchErr.code === 4902) {
-        await window.ethereum.request({
+      if (switchErr.code === 4902 || switchErr.code === -32603) {
+        await walletProvider.request({
           method: 'wallet_addEthereumChain',
           params: [RITUAL_CHAIN]
         });
       } else throw switchErr;
     }
-    provider   = new ethers.BrowserProvider(window.ethereum);
-    signer     = await provider.getSigner();
+
+    provider    = new ethers.BrowserProvider(walletProvider);
+    signer      = await provider.getSigner();
     userAddress = await signer.getAddress();
 
-    // Trigger transition animations
+    // Transition animation
     const connectScreen = document.getElementById('connect-screen');
-    const connectLogo = connectScreen.querySelector('.connect-logo');
-    const connectRings = connectScreen.querySelectorAll('.connect-ring');
-
+    const connectLogo   = connectScreen.querySelector('.connect-logo');
+    const connectRings  = connectScreen.querySelectorAll('.connect-ring');
     connectScreen.classList.add('success-active');
     if (connectLogo) connectLogo.classList.add('success-zoom');
-    connectRings.forEach(ring => ring.classList.add('success-zoom'));
-
-    // Wait for the portal zoom animation to finish (850ms)
+    connectRings.forEach(r => r.classList.add('success-zoom'));
     await new Promise(resolve => setTimeout(resolve, 850));
 
     connectScreen.style.display = 'none';
     const dashboard = document.getElementById('dashboard');
     dashboard.style.display = 'block';
     dashboard.classList.add('fade-in');
-    
-    // Trigger browser layout for transition
     void dashboard.offsetWidth;
-    
     dashboard.classList.add('fade-in-active');
     document.getElementById('disconnect-btn').style.display = 'flex';
 
@@ -2128,14 +2297,18 @@ async function connectWallet() {
     networkPollInterval = setInterval(pollNetwork, 10000);
     startBlockListener();
 
-    window.ethereum.on('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
-    window.ethereum.on('chainChanged', () => location.reload());
-    showToast('Wallet connected!', 'success');
+    walletProvider.on?.('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
+    walletProvider.on?.('chainChanged', () => location.reload());
+    showToast(`${wallet.info.name} connected! ✓`, 'success');
   } catch (e) {
     showToast(e.message || 'Connection failed', 'error');
-    btn.textContent = 'Connect Wallet';
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="M16 22l5-5-5-5"/><path d="M21 17H9"/></svg> Connect Wallet`;
     btn.disabled = false;
   }
+}
+
+async function connectWallet() {
+  openWalletModal();
 }
 
 // ── Address UI ──
