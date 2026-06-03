@@ -2459,19 +2459,66 @@ async function connectWalletConnect() {
       if (!window.QRCode) throw new Error('Failed to load QR library');
     }
 
-    // 2. Load WalletConnect Ethereum Provider
-    if (!window["@walletconnect/ethereum-provider"] && !window.WalletConnectEthereumProvider) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.17.0/dist/index.umd.js';
-        s.onload = res; s.onerror = () => rej(new Error('Failed to load WalletConnect SDK'));
-        document.head.appendChild(s);
-      });
+    // 2. Load WalletConnect Ethereum Provider — try several CDN mirrors
+    const WC_URLS = [
+      'https://unpkg.com/@walletconnect/ethereum-provider@2.13.0/dist/index.umd.js',
+      'https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.13.0/dist/index.umd.js'
+    ];
+
+    // Helper: resolve EthereumProvider from whatever the UMD bundle exported
+    function resolveWCProvider() {
+      // Possible window keys the UMD build might register under
+      const keys = [
+        '@walletconnect/ethereum-provider',
+        'WalletConnectEthereumProvider',
+        'EthereumProvider'
+      ];
+      for (const key of keys) {
+        const lib = window[key];
+        if (!lib) continue;
+        // Try every nesting shape
+        const candidates = [
+          lib,
+          lib.EthereumProvider,
+          lib.default,
+          lib.default?.EthereumProvider
+        ];
+        for (const c of candidates) {
+          if (c && typeof c.init === 'function') return c;
+        }
+      }
+      return null;
     }
 
-    const lib = window["@walletconnect/ethereum-provider"] || window.WalletConnectEthereumProvider;
-    const EthereumProvider = lib?.EthereumProvider || lib?.default || lib;
-    if (!EthereumProvider) throw new Error('WalletConnect SDK failed to load. Please try again.');
+    // Only load if not already available
+    if (!resolveWCProvider()) {
+      let loaded = false;
+      for (const url of WC_URLS) {
+        try {
+          await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = url;
+            s.onload = res;
+            s.onerror = () => rej(new Error(`CDN error: ${url}`));
+            document.head.appendChild(s);
+          });
+          loaded = true;
+          break; // stop on first success
+        } catch (e) {
+          console.warn('WC CDN failed, trying next…', e.message);
+        }
+      }
+      if (!loaded) throw new Error('Failed to load WalletConnect SDK from all CDN mirrors');
+    }
+
+    const EthereumProvider = resolveWCProvider();
+    if (!EthereumProvider) {
+      // Expose debug info in the error message
+      const snap = ['@walletconnect/ethereum-provider','WalletConnectEthereumProvider','EthereumProvider']
+        .map(k => `${k}: ${window[k] ? Object.keys(window[k]).slice(0,5).join(',') : 'undefined'}`)
+        .join(' | ');
+      throw new Error(`WalletConnect init() not found. Debug: ${snap}`);
+    }
 
     // 3. Init provider WITHOUT the built-in QR modal (we show our own)
     const wcProvider = await EthereumProvider.init({
