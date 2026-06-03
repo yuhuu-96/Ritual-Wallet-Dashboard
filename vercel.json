@@ -1,12 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/transactions.js": { "runtime": "@vercel/node@3", "maxDuration": 15 },
-    "api/nfts.js": { "runtime": "@vercel/node@3", "maxDuration": 60 }
-  },
-  "rewrites": [
-    { "source": "/api/transactions", "destination": "/api/transactions.js" },
-    { "source": "/api/nfts", "destination": "/api/nfts.js" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+    "api/transactions.js": { "maxDuration": 15 },
+    "api/nfts.js": { "maxDuration": 60 }
+  }
 }

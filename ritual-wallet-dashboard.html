@@ -1247,7 +1247,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
       Connect Wallet
     </button>
     <p style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);letter-spacing:0.1em;">
-      MetaMask · OKX · Phantom · Rabby · Trust &amp; more
+      MetaMask &middot; OKX &middot; Phantom &middot; Rabby &middot; Trust &amp; more
     </p>
 
     <!-- ── Wallet Picker Modal ── -->
@@ -2133,52 +2133,66 @@ window.addEventListener('eip6963:announceProvider', (event) => {
   const { info, provider } = event.detail;
   walletProviders.set(info.uuid, { info, provider });
 });
-window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+// Request EIP-6963 providers (after a small delay for extensions to initialize)
+setTimeout(() => {
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+}, 100);
 
 // Known wallet detection via window properties (legacy EIP-1193)
 function detectLegacyWallets() {
   const found = [];
+  const seen = new Set();
+
+  function addWallet(name, icon, uuid, provider) {
+    if (!seen.has(uuid) && provider) {
+      seen.add(uuid);
+      found.push({ info: { name, icon, uuid }, provider });
+    }
+  }
+
+  // ── OKX Wallet ── (injects window.okxwallet + may take window.ethereum)
+  if (window.okxwallet) {
+    addWallet('OKX Wallet', 'okx', 'okx-window', window.okxwallet);
+  }
+
+  // ── Phantom EVM ── (injects window.phantom.ethereum)
+  if (window.phantom?.ethereum) {
+    addWallet('Phantom', 'phantom', 'phantom-window', window.phantom.ethereum);
+  }
+
+  // ── Scan window.ethereum (may be single or multi-provider array) ──
   const eth = window.ethereum;
-  if (!eth) return found;
+  if (eth) {
+    const providers = eth.providers || [eth]; // MetaMask + others sometimes inject eth.providers[]
+    providers.forEach((p, i) => {
+      if (!p) return;
+      if ((p.isOKExWallet || p.isOKX) && !seen.has('okx-inj')) {
+        addWallet('OKX Wallet', 'okx', 'okx-inj', p);
+      } else if ((p.isPhantom) && !seen.has('phantom-inj')) {
+        addWallet('Phantom', 'phantom', 'phantom-inj', p);
+      } else if (p.isRabby && !seen.has('rabby-inj')) {
+        addWallet('Rabby Wallet', 'rabby', 'rabby-inj', p);
+      } else if (p.isBraveWallet && !seen.has('brave-inj')) {
+        addWallet('Brave Wallet', 'brave', 'brave-inj', p);
+      } else if ((p.isCoinbaseWallet || p.isCoinbaseBrowser) && !seen.has('coinbase-inj')) {
+        addWallet('Coinbase Wallet', 'coinbase', 'coinbase-inj', p);
+      } else if ((p.isTrust || p.isTrustWallet) && !seen.has('trust-inj')) {
+        addWallet('Trust Wallet', 'trust', 'trust-inj', p);
+      } else if (p.isMetaMask && !p.isOKExWallet && !p.isRabby && !p.isPhantom && !seen.has('mm-inj')) {
+        addWallet('MetaMask', 'metamask', 'mm-inj', p);
+      } else if (!p.isMetaMask && !p.isOKExWallet && !p.isPhantom && !p.isRabby && i > 0 && !seen.has(`generic-${i}`)) {
+        // Unknown injected provider
+        addWallet('Browser Wallet', 'generic', `generic-${i}`, p);
+      }
+    });
 
-  // Multi-provider array (some wallets inject here)
-  const providers = eth.providers || [eth];
-  providers.forEach(p => {
-    if (p.isMetaMask && !p.isOKExWallet && !p.isRabby) {
-      found.push({ info: { name: 'MetaMask', icon: 'metamask', uuid: 'metamask-legacy' }, provider: p });
+    // If single provider with no label → generic browser wallet
+    if (found.length === 0 && eth) {
+      addWallet('Browser Wallet', 'generic', 'generic-eth', eth);
     }
-    if (p.isOKExWallet || p.isOKX) {
-      found.push({ info: { name: 'OKX Wallet', icon: 'okx', uuid: 'okx-legacy' }, provider: p });
-    }
-    if (p.isPhantom) {
-      found.push({ info: { name: 'Phantom', icon: 'phantom', uuid: 'phantom-legacy' }, provider: p });
-    }
-    if (p.isRabby) {
-      found.push({ info: { name: 'Rabby Wallet', icon: 'rabby', uuid: 'rabby-legacy' }, provider: p });
-    }
-    if (p.isTrust || p.isTrustWallet) {
-      found.push({ info: { name: 'Trust Wallet', icon: 'trust', uuid: 'trust-legacy' }, provider: p });
-    }
-    if (p.isBraveWallet) {
-      found.push({ info: { name: 'Brave Wallet', icon: 'brave', uuid: 'brave-legacy' }, provider: p });
-    }
-    if (p.isCoinbaseWallet || p.isCoinbaseBrowser) {
-      found.push({ info: { name: 'Coinbase Wallet', icon: 'coinbase', uuid: 'coinbase-legacy' }, provider: p });
-    }
-  });
-
-  // Also check window.okxwallet
-  if (window.okxwallet && !found.find(f => f.info.uuid === 'okx-legacy')) {
-    found.push({ info: { name: 'OKX Wallet', icon: 'okx', uuid: 'okx-window' }, provider: window.okxwallet });
-  }
-  if (window.phantom?.ethereum && !found.find(f => f.info.uuid === 'phantom-legacy')) {
-    found.push({ info: { name: 'Phantom', icon: 'phantom', uuid: 'phantom-window' }, provider: window.phantom.ethereum });
   }
 
-  // Generic fallback — any unlabeled injected provider
-  if (found.length === 0 && eth) {
-    found.push({ info: { name: 'Browser Wallet', icon: 'generic', uuid: 'generic-legacy' }, provider: eth });
-  }
   return found;
 }
 
