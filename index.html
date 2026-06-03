@@ -1864,144 +1864,157 @@ async function loadNfts() {
   if (!el) return;
   el.innerHTML = '<div class="loading-state" style="grid-column: span 2;">Scanning logs for NFTs...</div>';
 
-  try {
-    const latestBlock = await readProvider.getBlockNumber();
-    const addr = userAddress.toLowerCase();
-    
-    // Filter Transfer events (Topic 0 matching Transfer(address,address,uint256))
-    const topicTransfer = ethers.id("Transfer(address,address,uint256)");
-    const topicTo = ethers.zeroPadValue(addr, 32);
+  const MAX_RETRIES = RPC_POOL.length;
+  const CHUNK_SIZE  = 200; // smaller chunks to avoid RPC range limits
+  const SCAN_DEPTH  = 1000;
 
-    // Fetch logs (last 500 blocks for performance, custom contracts scanned explicitly)
-    const filter = {
-      fromBlock: latestBlock - 500,
-      toBlock: latestBlock,
-      topics: [topicTransfer, null, topicTo]
-    };
-    
-    const logs = await readProvider.getLogs(filter);
-    const discoveredTokens = [];
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const latestBlock = await readProvider.getBlockNumber();
+      const addr = userAddress.toLowerCase();
+      
+      const topicTransfer = ethers.id("Transfer(address,address,uint256)");
+      const topicTo = ethers.zeroPadValue(addr, 32);
+      const discoveredTokens = [];
 
-    // Process logs (ERC-721 has 4 topics: sig, from, to, tokenId)
-    logs.forEach(log => {
-      if (log.topics.length === 4) {
-        const tokenId = BigInt(log.topics[3]).toString();
-        discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
+      // Fetch logs in smaller chunks to avoid RPC range limits
+      for (let from = latestBlock - SCAN_DEPTH; from < latestBlock; from += CHUNK_SIZE) {
+        const to = Math.min(from + CHUNK_SIZE - 1, latestBlock);
+        try {
+          const logs = await readProvider.getLogs({
+            fromBlock: Math.max(from, 0),
+            toBlock: to,
+            topics: [topicTransfer, null, topicTo]
+          });
+          logs.forEach(log => {
+            if (log.topics.length === 4) {
+              const tokenId = BigInt(log.topics[3]).toString();
+              discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
+            }
+          });
+        } catch { /* skip chunk */ }
       }
-    });
 
-    // Also scan custom imported NFT contracts (last 3000 blocks for depth)
-    const customContracts = getCustomNftContracts();
-    if (customContracts.length > 0) {
-      const customFilter = {
-        fromBlock: latestBlock - 3000,
-        toBlock: latestBlock,
-        address: customContracts,
-        topics: [topicTransfer, null, topicTo]
-      };
-      try {
-        const customLogs = await readProvider.getLogs(customFilter);
-        customLogs.forEach(log => {
-          if (log.topics.length === 4) {
-            const tokenId = BigInt(log.topics[3]).toString();
-            discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
-          }
-        });
-      } catch {}
-    }
-
-    // Deduplicate
-    const tokenMap = new Map();
-    discoveredTokens.forEach(t => {
-      tokenMap.set(`${t.contractAddress}_${t.tokenId}`, t);
-    });
-
-    const uniqueTokens = Array.from(tokenMap.values());
-    if (uniqueTokens.length === 0) {
-      el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No NFTs found. Try adding a contract address.</div>';
-      return;
-    }
-
-    // Resolve Metadata
-    const abi = [
-      "function name() view returns (string)",
-      "function symbol() view returns (string)",
-      "function tokenURI(uint256 tokenId) view returns (string)",
-      "function ownerOf(uint256 tokenId) view returns (address)"
-    ];
-
-    const nftItemsHTML = [];
-    
-    for (const t of uniqueTokens) {
-      try {
-        const contract = new ethers.Contract(t.contractAddress, abi, readProvider);
-        
-        // Verify current ownership (to prevent showing transferred away tokens)
-        const owner = await contract.ownerOf(t.tokenId);
-        if (owner.toLowerCase() !== addr) continue;
-
-        let collectionName = 'Unknown Collection';
-        let tokenUri = '';
-        try { collectionName = await contract.name(); } catch {}
-        try { tokenUri = await contract.tokenURI(t.tokenId); } catch {}
-
-        let name = `${collectionName} #${t.tokenId}`;
-        let imageUrl = '';
-
-        if (tokenUri) {
+      // Also scan custom imported NFT contracts (larger depth, chunked)
+      const customContracts = getCustomNftContracts();
+      if (customContracts.length > 0) {
+        const CUSTOM_DEPTH = 3000;
+        for (let from = latestBlock - CUSTOM_DEPTH; from < latestBlock; from += CHUNK_SIZE) {
+          const to = Math.min(from + CHUNK_SIZE - 1, latestBlock);
           try {
-            let metadata = {};
-            if (tokenUri.startsWith("data:application/json;base64,")) {
-              const base64 = tokenUri.split(",")[1];
-              metadata = JSON.parse(atob(base64));
-            } else {
-              let fetchUrl = tokenUri;
-              if (tokenUri.startsWith("ipfs://")) {
-                fetchUrl = tokenUri.replace("ipfs://", "https://ipfs.io/ipfs/");
+            const customLogs = await readProvider.getLogs({
+              fromBlock: Math.max(from, 0),
+              toBlock: to,
+              address: customContracts,
+              topics: [topicTransfer, null, topicTo]
+            });
+            customLogs.forEach(log => {
+              if (log.topics.length === 4) {
+                const tokenId = BigInt(log.topics[3]).toString();
+                discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
               }
-              const res = await fetch(fetchUrl);
-              metadata = await res.json();
-            }
-            name = metadata.name || `${collectionName} #${t.tokenId}`;
-            imageUrl = metadata.image || metadata.image_url || '';
-            if (imageUrl.startsWith("ipfs://")) {
-              imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
-            }
-          } catch {
-            name = `${collectionName} #${t.tokenId}`;
-          }
+            });
+          } catch { /* skip chunk */ }
         }
+      }
 
-        const imgBlock = imageUrl
-          ? `<img src="${imageUrl}" class="nft-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
-          : '';
+      // Deduplicate
+      const tokenMap = new Map();
+      discoveredTokens.forEach(t => {
+        tokenMap.set(`${t.contractAddress}_${t.tokenId}`, t);
+      });
 
-        nftItemsHTML.push(`<div class="nft-card">
-          <div class="nft-img-wrap">
-            ${imgBlock}
-            <div class="nft-placeholder" style="${imageUrl ? 'display:none;' : ''}">
-              <span style="font-size:24px;margin-bottom:8px;">🎨</span>
-              <span>#${t.tokenId}</span>
+      const uniqueTokens = Array.from(tokenMap.values());
+      if (uniqueTokens.length === 0) {
+        el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No NFTs found. Try adding a contract address.</div>';
+        return;
+      }
+
+      // Resolve Metadata
+      const abi = [
+        "function name() view returns (string)",
+        "function symbol() view returns (string)",
+        "function tokenURI(uint256 tokenId) view returns (string)",
+        "function ownerOf(uint256 tokenId) view returns (address)"
+      ];
+
+      const nftItemsHTML = [];
+      
+      for (const t of uniqueTokens) {
+        try {
+          const contract = new ethers.Contract(t.contractAddress, abi, readProvider);
+          
+          // Verify current ownership
+          const owner = await contract.ownerOf(t.tokenId);
+          if (owner.toLowerCase() !== addr) continue;
+
+          let collectionName = 'Unknown Collection';
+          let tokenUri = '';
+          try { collectionName = await contract.name(); } catch {}
+          try { tokenUri = await contract.tokenURI(t.tokenId); } catch {}
+
+          let name = `${collectionName} #${t.tokenId}`;
+          let imageUrl = '';
+
+          if (tokenUri) {
+            try {
+              let metadata = {};
+              if (tokenUri.startsWith("data:application/json;base64,")) {
+                const base64 = tokenUri.split(",")[1];
+                metadata = JSON.parse(atob(base64));
+              } else {
+                let fetchUrl = tokenUri;
+                if (tokenUri.startsWith("ipfs://")) {
+                  fetchUrl = tokenUri.replace("ipfs://", "https://ipfs.io/ipfs/");
+                }
+                const res = await fetch(fetchUrl);
+                metadata = await res.json();
+              }
+              name = metadata.name || `${collectionName} #${t.tokenId}`;
+              imageUrl = metadata.image || metadata.image_url || '';
+              if (imageUrl.startsWith("ipfs://")) {
+                imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
+              }
+            } catch {
+              name = `${collectionName} #${t.tokenId}`;
+            }
+          }
+
+          const imgBlock = imageUrl
+            ? `<img src="${imageUrl}" class="nft-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
+            : '';
+
+          nftItemsHTML.push(`<div class="nft-card">
+            <div class="nft-img-wrap">
+              ${imgBlock}
+              <div class="nft-placeholder" style="${imageUrl ? 'display:none;' : ''}">
+                <span style="font-size:24px;margin-bottom:8px;">🎨</span>
+                <span>#${t.tokenId}</span>
+              </div>
             </div>
-          </div>
-          <div class="nft-meta">
-            <div class="nft-name" title="${name}">${name}</div>
-            <div class="nft-collection" title="${collectionName}">${collectionName}</div>
-          </div>
-        </div>`);
+            <div class="nft-meta">
+              <div class="nft-name" title="${name}">${name}</div>
+              <div class="nft-collection" title="${collectionName}">${collectionName}</div>
+            </div>
+          </div>`);
 
-      } catch (err) { /* skip faulty contracts */ }
+        } catch (err) { /* skip faulty contracts */ }
+      }
+
+      if (nftItemsHTML.length === 0) {
+        el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No owned NFTs found in history.</div>';
+      } else {
+        el.innerHTML = nftItemsHTML.join('');
+      }
+      return; // success — exit retry loop
+
+    } catch (e) {
+      // Rotate to next RPC and retry
+      rotateRpc();
     }
-
-    if (nftItemsHTML.length === 0) {
-      el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No owned NFTs found in history.</div>';
-    } else {
-      el.innerHTML = nftItemsHTML.join('');
-    }
-
-  } catch (e) {
-    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">Failed to scan logs. Try again.</div>';
   }
+  // All retries exhausted
+  el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">Failed to scan logs. Try again.</div>';
 }
 
 function toggleTheme() {
@@ -2450,62 +2463,86 @@ async function pollNetwork() {
   }
 }
 
-// ── Load TX History ──
+// ── Load TX History (batch parallel + retry with RPC fallback) ──
 async function loadTxHistory() {
   const el = document.getElementById('tx-list');
   el.innerHTML = '<div class="loading-state">Scanning recent blocks...</div>';
-  try {
-    const latestBlock = await readProvider.getBlockNumber();
-    const addr        = userAddress.toLowerCase();
-    const txs         = [];
-    for (let i = latestBlock; i > latestBlock - 100 && txs.length < 10; i--) {
-      try {
-        const block = await readProvider.getBlock(i, true);
-        if (!block?.transactions) continue;
-        for (const tx of block.transactions) {
-          if (tx.from?.toLowerCase() === addr || tx.to?.toLowerCase() === addr) {
-            txs.push({ ...tx, blockTimestamp: block.timestamp });
-            knownTxHashes.add(tx.hash);
-            if (txs.length >= 10) break;
-          }
+
+  const SCAN_DEPTH  = 500;   // scan up to 500 blocks back
+  const BATCH_SIZE  = 10;    // fetch 10 blocks in parallel per batch
+  const MAX_TX      = 10;    // stop once we found 10 txs
+  const MAX_RETRIES = RPC_POOL.length; // try each RPC once
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const latestBlock = await readProvider.getBlockNumber();
+      const addr = userAddress.toLowerCase();
+      const txs  = [];
+
+      // Process blocks in parallel batches
+      for (let start = latestBlock; start > latestBlock - SCAN_DEPTH && txs.length < MAX_TX; start -= BATCH_SIZE) {
+        const batchPromises = [];
+        for (let j = 0; j < BATCH_SIZE && (start - j) > latestBlock - SCAN_DEPTH; j++) {
+          batchPromises.push(
+            readProvider.getBlock(start - j, true).catch(() => null)
+          );
         }
-      } catch { /* skip */ }
+        const blocks = await Promise.all(batchPromises);
+        for (const block of blocks) {
+          if (!block?.transactions) continue;
+          for (const tx of block.transactions) {
+            if (tx.from?.toLowerCase() === addr || tx.to?.toLowerCase() === addr) {
+              txs.push({ ...tx, blockTimestamp: block.timestamp });
+              knownTxHashes.add(tx.hash);
+              if (txs.length >= MAX_TX) break;
+            }
+          }
+          if (txs.length >= MAX_TX) break;
+        }
+      }
+
+      // Sort by block number descending
+      txs.sort((a, b) => (b.blockNumber || 0) - (a.blockNumber || 0));
+
+      // Save globally for CSV exporter
+      window.walletTransactions = txs;
+      const csvBtn = document.getElementById('export-csv-btn');
+
+      if (!txs.length) {
+        if (csvBtn) csvBtn.style.display = 'none';
+        el.innerHTML = '<div class="empty-state">No transactions found in recent blocks.</div>';
+        return;
+      }
+
+      if (csvBtn) csvBtn.style.display = 'inline-flex';
+
+      el.innerHTML = txs.map(tx => {
+        const isOut  = tx.from?.toLowerCase() === addr;
+        const dir    = tx.to ? (isOut ? 'out' : 'in') : 'ctr';
+        const icon   = dir === 'out' ? '↑' : dir === 'in' ? '↓' : '◈';
+        const val    = parseFloat(ethers.formatEther(tx.value || 0n)).toFixed(4);
+        const shortH = tx.hash.slice(0,10) + '...' + tx.hash.slice(-6);
+        const peer   = isOut
+          ? (tx.to ? tx.to.slice(0,8)+'...' : 'Contract')
+          : (tx.from ? tx.from.slice(0,8)+'...' : '—');
+        const time   = tx.blockTimestamp ? getTimeAgo(Number(tx.blockTimestamp)) : '';
+        return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${tx.hash}','_blank')">
+          <div class="tx-badge ${dir}">${icon}</div>
+          <div class="tx-info">
+            <div class="tx-hash">${shortH}</div>
+            <div class="tx-meta">${isOut?'To':'From'}: ${peer}${time?' · '+time:''}</div>
+          </div>
+          <div class="tx-amount ${dir==='ctr'?'':dir}">${isOut?'−':'+'}${val} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
+        </div>`;
+      }).join('');
+      return; // success — exit retry loop
+    } catch {
+      // Rotate to next RPC and retry
+      rotateRpc();
     }
-
-    // Save globally for CSV exporter
-    window.walletTransactions = txs;
-    const csvBtn = document.getElementById('export-csv-btn');
-
-    if (!txs.length) {
-      if (csvBtn) csvBtn.style.display = 'none';
-      el.innerHTML = '<div class="empty-state">No transactions in last 100 blocks.</div>';
-      return;
-    }
-
-    if (csvBtn) csvBtn.style.display = 'inline-flex';
-
-    el.innerHTML = txs.map(tx => {
-      const isOut  = tx.from?.toLowerCase() === addr;
-      const dir    = tx.to ? (isOut ? 'out' : 'in') : 'ctr';
-      const icon   = dir === 'out' ? '↑' : dir === 'in' ? '↓' : '◈';
-      const val    = parseFloat(ethers.formatEther(tx.value || 0n)).toFixed(4);
-      const shortH = tx.hash.slice(0,10) + '...' + tx.hash.slice(-6);
-      const peer   = isOut
-        ? (tx.to ? tx.to.slice(0,8)+'...' : 'Contract')
-        : (tx.from ? tx.from.slice(0,8)+'...' : '—');
-      const time   = tx.blockTimestamp ? getTimeAgo(Number(tx.blockTimestamp)) : '';
-      return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${tx.hash}','_blank')">
-        <div class="tx-badge ${dir}">${icon}</div>
-        <div class="tx-info">
-          <div class="tx-hash">${shortH}</div>
-          <div class="tx-meta">${isOut?'To':'From'}: ${peer}${time?' · '+time:''}</div>
-        </div>
-        <div class="tx-amount ${dir==='ctr'?'':dir}">${isOut?'−':'+'}${val} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
-      </div>`;
-    }).join('');
-  } catch {
-    el.innerHTML = '<div class="empty-state">Could not load. RPC may be slow.</div>';
   }
+  // All retries exhausted
+  el.innerHTML = '<div class="empty-state">Could not load. RPC may be slow.</div>';
 }
 
 function getTimeAgo(ts) {
