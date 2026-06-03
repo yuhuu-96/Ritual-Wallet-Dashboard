@@ -1261,6 +1261,26 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
         <p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:12px;">Connecting options for browser extensions and mobile apps.</p>
       </div>
     </div>
+
+    <!-- ── WalletConnect QR Modal ── -->
+    <div id="wc-qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(10px);" onclick="if(event.target===this)cancelWCConnect()">
+      <div style="background:var(--surface-2);border:1px solid var(--border-1);border-radius:24px;padding:32px 28px;max-width:370px;width:92%;text-align:center;position:relative;box-shadow:0 24px 80px rgba(0,0,0,0.6);">
+        <button onclick="cancelWCConnect()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.06);border:none;color:var(--text-2);font-size:16px;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;">&#10005;</button>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;">
+          <svg viewBox="0 0 40 40" fill="none" width="30" height="30"><rect width="40" height="40" rx="8" fill="#3396FF"/><path d="M11.8 17.2c4.5-4.4 11.9-4.4 16.4 0l.5.5c.2.2.2.5 0 .7l-1.9 1.9c-.1.1-.3.1-.4 0l-.7-.7c-3.1-3.1-8.2-3.1-11.4 0l-.8.7c-.1.1-.3.1-.4 0l-1.9-1.9c-.2-.2-.2-.5 0-.7l.6-.5zm20.3 3.8 1.7 1.7c.2.2.2.5 0 .7l-7.8 7.8c-.2.2-.5.2-.7 0l-5.5-5.5c0-.1-.1-.1-.2 0l-5.5 5.5c-.2.2-.5.2-.7 0L5.7 23.4c-.2-.2-.2-.5 0-.7l1.7-1.7c.2-.2.5-.2.7 0l5.5 5.5c0 .1.1.1.2 0l5.5-5.5c.2-.2.5-.2.7 0l5.5 5.5c0 .1.1.1.2 0l5.5-5.5c.2-.1.5-.1.7.1z" fill="white"/></svg>
+          <span style="font-size:17px;font-weight:700;color:var(--text-1);">WalletConnect</span>
+        </div>
+        <p style="font-size:12px;color:var(--text-3);margin-bottom:20px;letter-spacing:0.02em;">Scan with your mobile wallet to connect</p>
+        <div id="wc-qr-canvas" style="display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:16px;padding:16px;margin-bottom:16px;min-height:230px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+            <div style="width:36px;height:36px;border:3px solid #3396FF;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+            <span style="color:#666;font-size:12px;">Loading QR code...</span>
+          </div>
+        </div>
+        <button id="wc-copy-btn" onclick="copyWCUri()" style="display:none;background:var(--surface-3);border:1px solid var(--border-1);color:var(--text-2);padding:9px 16px;border-radius:10px;cursor:pointer;font-size:12px;width:100%;margin-bottom:8px;transition:background 0.2s;" onmouseover="this.style.background='var(--surface-4)'" onmouseout="this.style.background='var(--surface-3)'">📋 Copy connection link</button>
+        <p id="wc-status-text" style="font-size:11px;color:var(--text-3);">Waiting for wallet scan...</p>
+      </div>
+    </div>
   </div>
 
   <!-- ===================== DASHBOARD ===================== -->
@@ -2366,47 +2386,116 @@ async function connectOKX() {
   }
 }
 
+// ── WalletConnect custom QR modal helpers ──
+let _wcUri = '';
+let _wcProvider = null;
+
+function showWCQRModal(uri) {
+  _wcUri = uri;
+  const modal = document.getElementById('wc-qr-modal');
+  modal.style.display = 'flex';
+  const container = document.getElementById('wc-qr-canvas');
+  const copyBtn   = document.getElementById('wc-copy-btn');
+
+  if (window.QRCode) {
+    container.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    container.appendChild(canvas);
+    QRCode.toCanvas(canvas, uri, {
+      width: 230, margin: 1,
+      color: { dark: '#000000', light: '#ffffff' }
+    }, (err) => {
+      if (err) container.innerHTML = `<p style="color:red;font-size:12px;">QR failed: ${err.message}</p>`;
+      else copyBtn.style.display = 'block';
+    });
+  } else {
+    container.innerHTML = `<p style="color:#999;font-size:12px;">QR library not loaded</p>`;
+  }
+}
+
+function closeWCQRModal() {
+  const modal = document.getElementById('wc-qr-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function cancelWCConnect() {
+  closeWCQRModal();
+  if (_wcProvider) {
+    try { _wcProvider.disconnect(); } catch(e) {}
+    _wcProvider = null;
+  }
+  const btn = document.getElementById('connect-btn');
+  btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="M16 22l5-5-5-5"/><path d="M21 17H9"/></svg> Connect Wallet`;
+  btn.disabled = false;
+}
+
+function copyWCUri() {
+  if (_wcUri) navigator.clipboard.writeText(_wcUri).then(() => showToast('Link copied!', 'success'));
+}
+
 // ── WalletConnect ──
 async function connectWalletConnect() {
   closeWalletModal();
   const btn = document.getElementById('connect-btn');
-  btn.innerHTML = '<span style="opacity:0.7">Opening WalletConnect...</span>';
+  btn.innerHTML = '<span style="opacity:0.7">Loading WalletConnect...</span>';
   btn.disabled = true;
 
   try {
-    // Dynamically load WalletConnect Ethereum Provider
+    // 1. Load qrcode.js library
+    if (!window.QRCode) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+        s.onload = res; s.onerror = () => rej(new Error('Failed to load QR library'));
+        document.head.appendChild(s);
+      });
+    }
+
+    // 2. Load WalletConnect Ethereum Provider
     if (!window["@walletconnect/ethereum-provider"] && !window.WalletConnectEthereumProvider) {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.17.0/dist/index.umd.js';
-        s.onload = res; s.onerror = rej;
+        s.onload = res; s.onerror = () => rej(new Error('Failed to load WalletConnect SDK'));
         document.head.appendChild(s);
       });
     }
 
     const lib = window["@walletconnect/ethereum-provider"] || window.WalletConnectEthereumProvider;
     const EthereumProvider = lib?.EthereumProvider || lib?.default || lib;
-    if (!EthereumProvider) {
-      throw new Error('WalletConnect SDK failed to load. Please try again.');
-    }
+    if (!EthereumProvider) throw new Error('WalletConnect SDK failed to load. Please try again.');
 
+    // 3. Init provider WITHOUT the built-in QR modal (we show our own)
     const wcProvider = await EthereumProvider.init({
       projectId: WC_PROJECT_ID,
       chains: [parseInt(RITUAL_CHAIN.chainId, 16)],
-      showQrModal: true,
-      qrModalOptions: { themeMode: 'dark' },
+      showQrModal: false,
       metadata: {
         name: 'Ritual Wallet Dashboard',
         description: 'Live dashboard for Ritual Network',
         url: window.location.origin,
-        icons: []
+        icons: ['https://ritual-wallet-dashboard.vercel.app/favicon.ico']
       }
     });
 
+    _wcProvider = wcProvider;
+
+    // 4. Show QR when URI is ready
+    wcProvider.on('display_uri', (uri) => {
+      showWCQRModal(uri);
+    });
+
+    // 5. Enable triggers the connection flow and fires display_uri
+    btn.innerHTML = '<span style="opacity:0.7">Scan QR Code...</span>';
     await wcProvider.enable();
+
+    closeWCQRModal();
+    _wcProvider = null;
     await finishConnect(wcProvider, 'WalletConnect');
   } catch (e) {
-    if (e.message?.includes('User rejected') || e.message?.includes('closed')) {
+    closeWCQRModal();
+    _wcProvider = null;
+    if (e.message?.includes('User rejected') || e.message?.includes('closed') || e.message?.includes('cancel')) {
       showToast('WalletConnect cancelled', 'error');
     } else {
       showToast(e.message || 'WalletConnect failed', 'error');
