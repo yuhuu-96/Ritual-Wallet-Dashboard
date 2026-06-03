@@ -2485,7 +2485,7 @@ async function pollNetwork() {
   }
 }
 
-// ── Load TX History (real-time via raw RPC block scan) ──
+// ── Load TX History via Vercel serverless proxy → real-time explorer data ──
 async function loadTxHistory() {
   const el = document.getElementById('tx-list');
   if (!el) return;
@@ -2495,117 +2495,82 @@ async function loadTxHistory() {
   const csvBtn = document.getElementById('export-csv-btn');
   if (csvBtn) csvBtn.style.display = 'none';
 
-  el.innerHTML = '<div class="loading-state">Loading real-time transactions...</div>';
+  el.innerHTML = '<div class="loading-state">Loading transactions...</div>';
 
-  // Helper: raw JSON-RPC POST (bypass ethers wrapper)
-  async function rpcPost(rpcUrl, method, params) {
-    const res = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
-      signal: AbortSignal.timeout(10000)
-    });
-    const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
-    return json.result;
+  // ── Render helper ──
+  function renderRealTxs(txs) {
+    if (csvBtn) csvBtn.style.display = 'inline-flex';
+    window.walletTransactions = txs.map(tx => ({
+      hash: tx.tx_hash,
+      blockNumber: tx.block_number,
+      blockTimestamp: Math.floor(tx.block_timestamp / 1000),
+      from: tx.from_address,
+      to: tx.to_address,
+      value: BigInt(tx.value || '0x0')
+    }));
+
+    el.innerHTML = txs.map(tx => {
+      const isOut = (tx.from_address || '').toLowerCase() === addr;
+      const dir   = tx.to_address ? (isOut ? 'out' : 'in') : 'ctr';
+      const icon  = dir === 'out' ? '&#8593;' : dir === 'in' ? '&#8595;' : '&#9672;';
+      const val   = parseFloat(ethers.formatEther(BigInt(tx.value || '0x0'))).toFixed(4);
+      const short = tx.tx_hash.slice(0,10) + '...' + tx.tx_hash.slice(-6);
+      const peer  = isOut
+        ? (tx.to_address   ? tx.to_address.slice(0,8)+'...'+tx.to_address.slice(-6)   : 'Contract')
+        : (tx.from_address ? tx.from_address.slice(0,8)+'...'+tx.from_address.slice(-6) : '&mdash;');
+      const time  = tx.block_timestamp ? getTimeAgo(Math.floor(tx.block_timestamp / 1000)) : '';
+      let label   = isOut ? 'Send RITUAL' : 'Receive RITUAL';
+      if (tx.method_selector && tx.method_selector !== '0x') label = 'Contract Call';
+      else if (!tx.to_address) label = 'Contract Deploy';
+
+      return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${tx.tx_hash}','_blank')" style="cursor:pointer;" title="View on Explorer">
+        <div class="tx-badge ${dir}">${icon}</div>
+        <div class="tx-info">
+          <div class="tx-hash">${label}</div>
+          <div class="tx-meta">${short} | ${isOut ? 'To' : 'From'}: ${peer}${time ? ' | '+time : ''}</div>
+        </div>
+        <div class="tx-amount ${dir==='ctr'?'':dir}">${isOut?'&minus;':'+'}${val} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
+      </div>`;
+    }).join('');
   }
 
-  // Find a working RPC
-  let workingRpc = null;
-  let latestBlock = 0;
-  for (const rpc of RPC_POOL) {
-    try {
-      const hex = await rpcPost(rpc, 'eth_blockNumber', []);
-      latestBlock = parseInt(hex, 16);
-      workingRpc = rpc;
-      break;
-    } catch { /* try next */ }
-  }
-
-  if (!workingRpc) {
-    el.innerHTML = `<div class="empty-state">
-      <p style="margin-bottom:10px;">Cannot connect to Ritual Network.</p>
-      <a href="${explorerUrl}" target="_blank" rel="noopener" class="btn" style="padding:6px 14px;font-size:12px;display:inline-flex;align-items:center;gap:6px;">
-        View on Block Explorer &#8599;
-      </a>
-    </div>`;
-    return;
-  }
-
-  // Scan last 500 blocks in parallel batches of 20
-  const SCAN_DEPTH = 500;
-  const BATCH = 20;
-  const MAX_TX = 3;
-  const txs = [];
-
-  scanLoop:
-  for (let start = latestBlock; start > latestBlock - SCAN_DEPTH && txs.length < MAX_TX; start -= BATCH) {
-    const promises = [];
-    for (let j = 0; j < BATCH && (start - j) > latestBlock - SCAN_DEPTH; j++) {
-      promises.push(
-        rpcPost(workingRpc, 'eth_getBlockByNumber', ['0x' + (start - j).toString(16), true])
-          .catch(() => null)
-      );
+  // ── Strategy 1: Vercel serverless proxy (same-origin, no CORS issue) ──
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(`/api/transactions?address=${userAddress}&limit=3`, { signal: controller.signal });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      const txs = data.transactions || [];
+      if (txs.length > 0) { renderRealTxs(txs); return; }
     }
-    const blocks = await Promise.all(promises);
-    for (const block of blocks) {
-      if (!block || !block.transactions) continue;
-      for (const tx of block.transactions) {
-        const from = (tx.from || '').toLowerCase();
-        const to = (tx.to || '').toLowerCase();
-        if (from === addr || to === addr) {
-          txs.push({ ...tx, blockTimestamp: parseInt(block.timestamp, 16) });
-          if (txs.length >= MAX_TX) break scanLoop;
-        }
-      }
+  } catch (e) { console.warn('Serverless proxy unavailable, falling back...', e.message); }
+
+  // ── Strategy 2: direct fetch (works if CORS allowed or running locally) ──
+  try {
+    const now = new Date();
+    const past = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const apiUrl = `https://explorer.ritualfoundation.org/api/indexer-proxy/api/v1/addresses/${userAddress}/transactions?limit=3&offset=0&from_date=${past.toISOString().slice(0,10)}&to_date=${now.toISOString().slice(0,10)}`;
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(apiUrl, { signal: controller.signal });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      const txs = data.transactions || [];
+      if (txs.length > 0) { renderRealTxs(txs); return; }
     }
-  }
+  } catch (e) { console.warn('Direct API failed:', e.message); }
 
-  // Render results
-  if (txs.length === 0) {
-    el.innerHTML = `<div class="empty-state">
-      <p style="margin-bottom:10px;">No transactions found in last ${SCAN_DEPTH} blocks.</p>
-      <a href="${explorerUrl}" target="_blank" rel="noopener" class="btn" style="padding:6px 14px;font-size:12px;display:inline-flex;align-items:center;gap:6px;">
-        View Full History &#8599;
-      </a>
-    </div>`;
-    return;
-  }
-
-  if (csvBtn) csvBtn.style.display = 'inline-flex';
-
-  window.walletTransactions = txs.map(tx => ({
-    hash: tx.hash,
-    blockNumber: parseInt(tx.blockNumber, 16),
-    blockTimestamp: tx.blockTimestamp,
-    from: tx.from,
-    to: tx.to,
-    value: BigInt(tx.value || '0x0')
-  }));
-
-  el.innerHTML = txs.map(tx => {
-    const isOut = (tx.from || '').toLowerCase() === addr;
-    const dir = tx.to ? (isOut ? 'out' : 'in') : 'ctr';
-    const icon = dir === 'out' ? '&#8593;' : dir === 'in' ? '&#8595;' : '&#9672;';
-    const val = parseFloat(ethers.formatEther(BigInt(tx.value || '0x0'))).toFixed(4);
-    const shortH = tx.hash.slice(0, 10) + '...' + tx.hash.slice(-6);
-    const peer = isOut
-      ? (tx.to ? tx.to.slice(0, 8) + '...' + tx.to.slice(-6) : 'Contract')
-      : (tx.from ? tx.from.slice(0, 8) + '...' + tx.from.slice(-6) : '&mdash;');
-    const time = tx.blockTimestamp ? getTimeAgo(tx.blockTimestamp) : '';
-    let typeLabel = isOut ? 'Send RITUAL' : 'Receive RITUAL';
-    if (!tx.to) typeLabel = 'Contract Deploy';
-    else if (tx.input && tx.input.length > 10) typeLabel = 'Contract Call';
-
-    return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${tx.hash}','_blank')" style="cursor:pointer;" title="View on Explorer">
-      <div class="tx-badge ${dir}">${icon}</div>
-      <div class="tx-info">
-        <div class="tx-hash">${typeLabel}</div>
-        <div class="tx-meta">${shortH} | ${isOut ? 'To' : 'From'}: ${peer}${time ? ' | ' + time : ''}</div>
-      </div>
-      <div class="tx-amount ${dir === 'ctr' ? '' : dir}">${isOut ? '&minus;' : '+'}${val} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
-    </div>`;
-  }).join('');
+  // ── Strategy 3: fallback — show explorer link ──
+  el.innerHTML = `<div class="empty-state" style="padding:20px;text-align:center;">
+    <p style="margin-bottom:12px;opacity:0.7;">Transaction data temporarily unavailable.</p>
+    <a href="${explorerUrl}" target="_blank" rel="noopener"
+       style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:linear-gradient(135deg,#c9a84c,#e8c56a);color:#0d0d15;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;">
+      View on Ritual Explorer &#8599;
+    </a>
+  </div>`;
 }
 
 function getTimeAgo(ts) {
