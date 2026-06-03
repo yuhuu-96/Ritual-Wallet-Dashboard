@@ -2397,19 +2397,20 @@ function showWCQRModal(uri) {
   const container = document.getElementById('wc-qr-canvas');
   const copyBtn   = document.getElementById('wc-copy-btn');
 
-  if (window.QRCode) {
-    container.innerHTML = '';
-    const canvas = document.createElement('canvas');
-    container.appendChild(canvas);
-    QRCode.toCanvas(canvas, uri, {
-      width: 230, margin: 1,
-      color: { dark: '#000000', light: '#ffffff' }
-    }, (err) => {
-      if (err) container.innerHTML = `<p style="color:red;font-size:12px;">QR failed: ${err.message}</p>`;
-      else copyBtn.style.display = 'block';
+  container.innerHTML = '';
+  // qrcodejs uses: new QRCode(element, options)
+  try {
+    new QRCode(container, {
+      text: uri,
+      width: 220,
+      height: 220,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
     });
-  } else {
-    container.innerHTML = `<p style="color:#999;font-size:12px;">QR library not loaded</p>`;
+    copyBtn.style.display = 'block';
+  } catch(err) {
+    container.innerHTML = `<p style="color:red;font-size:12px;">QR failed: ${err.message}</p>`;
   }
 }
 
@@ -2441,14 +2442,21 @@ async function connectWalletConnect() {
   btn.disabled = true;
 
   try {
-    // 1. Load qrcode.js library
+    // 1. Load qrcodejs library (cdnjs — very reliable, uses new QRCode() API)
     if (!window.QRCode) {
-      await new Promise((res, rej) => {
+      const loadQR = (src) => new Promise((res, rej) => {
         const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-        s.onload = res; s.onerror = () => rej(new Error('Failed to load QR library'));
+        s.src = src; s.onload = res;
+        s.onerror = () => rej(new Error('cdn failed'));
         document.head.appendChild(s);
       });
+      try {
+        await loadQR('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js');
+      } catch {
+        // fallback mirror
+        await loadQR('https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js');
+      }
+      if (!window.QRCode) throw new Error('Failed to load QR library');
     }
 
     // 2. Load WalletConnect Ethereum Provider
