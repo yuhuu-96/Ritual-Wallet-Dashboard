@@ -2459,84 +2459,65 @@ async function connectWalletConnect() {
       if (!window.QRCode) throw new Error('Failed to load QR library');
     }
 
-    // 2. Load WalletConnect — try several CDN mirrors / versions
-    const WC_URLS = [
-      'https://unpkg.com/@walletconnect/ethereum-provider@2.11.0/dist/index.umd.js',
-      'https://unpkg.com/@walletconnect/ethereum-provider@2.13.0/dist/index.umd.js',
-      'https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.11.0/dist/index.umd.js'
-    ];
+    // 2. Inject Node.js polyfills required by @walletconnect/* UMD builds
+    //    Without these, the bundle silently exports an empty object
+    if (!window.process) {
+      window.process = { env: {}, version: 'v18.0.0', browser: true, nextTick: (fn) => setTimeout(fn, 0) };
+    }
+    if (!window.Buffer) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/buffer@6.0.3/index.js';
+        s.onload = () => { if (window.Buffer) res(); else rej(new Error('Buffer polyfill bad')); };
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+      if (window.buffer?.Buffer) window.Buffer = window.buffer.Buffer;
+    }
 
-    // Scan ALL property names (incl. non-enumerable Rollup exports)
+    // 3. Load WalletConnect Ethereum Provider (polyfills must be ready first)
+    const loadScript = (src) => new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res;
+      s.onerror = () => rej(new Error(`CDN failed: ${src}`));
+      document.head.appendChild(s);
+    });
+
+    if (Object.keys(window['@walletconnect/ethereum-provider'] || {}).length === 0) {
+      // Clear broken empty object if already set
+      delete window['@walletconnect/ethereum-provider'];
+      try {
+        await loadScript('https://unpkg.com/@walletconnect/ethereum-provider@2.11.0/dist/index.umd.js');
+      } catch {
+        await loadScript('https://cdn.jsdelivr.net/npm/@walletconnect/ethereum-provider@2.11.0/dist/index.umd.js');
+      }
+    }
+
+    // Resolve EthereumProvider from loaded UMD bundle
     function resolveWCProvider() {
-      const windowKeys = [
-        '@walletconnect/ethereum-provider',
-        'WalletConnectEthereumProvider',
-        'EthereumProvider'
-      ];
+      const windowKeys = ['@walletconnect/ethereum-provider', 'WalletConnectEthereumProvider', 'EthereumProvider'];
       for (const wk of windowKeys) {
         const lib = window[wk];
         if (!lib) continue;
-
-        // Check lib itself  
-        if (typeof lib.init === 'function') return lib;
-
-        // Use getOwnPropertyNames to find non-enumerable exports
-        let propNames = [];
-        try { propNames = Object.getOwnPropertyNames(lib); } catch(e) {}
-
-        // Also try common names directly (even if not in propNames)
-        const tryNames = [...new Set([...propNames, 'EthereumProvider', 'default', 'Provider'])];
-        for (const name of tryNames) {
+        const tryList = [lib, lib.EthereumProvider, lib.default, lib.default?.EthereumProvider];
+        for (const c of tryList) {
+          if (c && typeof c.init === 'function') return c;
+        }
+        // getOwnPropertyNames catches non-enumerable rollup exports
+        for (const name of Object.getOwnPropertyNames(lib)) {
           try {
             const val = lib[name];
-            if (!val) continue;
-            if (typeof val.init === 'function') return val;
-            // Maybe init is nested one more level
-            if (val.EthereumProvider && typeof val.EthereumProvider.init === 'function') return val.EthereumProvider;
+            if (val && typeof val.init === 'function') return val;
           } catch(e) {}
-        }
-
-        // Last resort: if lib is a constructor, fake a static init
-        if (typeof lib === 'function') {
-          return {
-            init: async (opts) => {
-              const instance = new lib(opts);
-              return instance;
-            }
-          };
         }
       }
       return null;
     }
 
-    // Only load if not already available
-    if (!resolveWCProvider()) {
-      let loaded = false;
-      for (const url of WC_URLS) {
-        try {
-          await new Promise((res, rej) => {
-            const s = document.createElement('script');
-            s.src = url;
-            s.onload = res;
-            s.onerror = () => rej(new Error(`CDN error: ${url}`));
-            document.head.appendChild(s);
-          });
-          loaded = true;
-          break; // stop on first success
-        } catch (e) {
-          console.warn('WC CDN failed, trying next…', e.message);
-        }
-      }
-      if (!loaded) throw new Error('Failed to load WalletConnect SDK from all CDN mirrors');
-    }
-
     const EthereumProvider = resolveWCProvider();
     if (!EthereumProvider) {
       const lib = window['@walletconnect/ethereum-provider'];
-      const typeStr = typeof lib;
-      const propsStr = lib ? Object.getOwnPropertyNames(lib).slice(0,8).join(',') : 'N/A';
-      const hasInit = typeof lib?.init;
-      throw new Error(`WC not resolved. type=${typeStr}, hasInit=${hasInit}, props=[${propsStr}]`);
+      throw new Error(`WC not resolved. type=${typeof lib}, props=[${Object.getOwnPropertyNames(lib||{}).join(',')}]`);
     }
 
     // 3. Init provider WITHOUT the built-in QR modal (we show our own)
