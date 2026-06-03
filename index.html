@@ -1643,15 +1643,34 @@ const RITUAL_CHAIN = {
 const EXPLORER   = 'https://explorer.ritualfoundation.org';
 const CHAIN_ID   = 1979;
 
+// ── Fallback RPC pool — dirotasi saat primary gagal ──
+const RPC_POOL = [
+  'https://rpc.ritualfoundation.org',
+  'https://ritual-testnet-rpc.allthatnode.com',
+  'https://rpc.ritual.network',
+];
+let rpcPoolIndex = 0;
+
 let provider, signer, userAddress, balance;
 let readProvider; // Read-only RPC provider
-let activeRpcUrl = 'https://rpc.ritualfoundation.org';
+let activeRpcUrl = RPC_POOL[0];
 let refreshInterval, networkPollInterval, countdownInterval, blockListener;
 let countdownSec = 12;
 let knownTxHashes = new Set();
+let statFailures  = 0; // failure counter untuk refreshStats
+let pollFailures  = 0; // failure counter untuk pollNetwork (terpisah)
 
 // ── Initialize readProvider immediately ──
 readProvider = new ethers.JsonRpcProvider(activeRpcUrl);
+
+// ── Rotate ke RPC berikutnya dalam pool ──
+function rotateRpc() {
+  rpcPoolIndex = (rpcPoolIndex + 1) % RPC_POOL.length;
+  activeRpcUrl = RPC_POOL[rpcPoolIndex];
+  try {
+    readProvider = new ethers.JsonRpcProvider(activeRpcUrl);
+  } catch { /* ignore */ }
+}
 
 // ── Toast ──
 function showToast(msg, type = 'info') {
@@ -2191,8 +2210,8 @@ async function connectWallet() {
     await loadTxHistory();
     await loadNfts();
     startCountdown();
-    refreshInterval     = setInterval(doRefresh, 12000);
-    networkPollInterval = setInterval(pollNetwork, 7000);
+    refreshInterval     = setInterval(doRefresh, 15000);
+    networkPollInterval = setInterval(pollNetwork, 10000);
     startBlockListener();
 
     window.ethereum.on('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
@@ -2215,13 +2234,23 @@ function updateAddressUI() {
 
 // ── Refresh stats ──
 async function refreshStats() {
-  try {
-    const [blockNum, feeData, bal, code] = await Promise.all([
-      readProvider.getBlockNumber(),
-      readProvider.getFeeData(),
-      readProvider.getBalance(userAddress),
-      readProvider.getCode(userAddress)
+  // Helper: race sebuah promise melawan timeout
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
     ]);
+  }
+  try {
+    // Panggil secara sequential agar tidak membebani RPC sekaligus
+    const blockNum = await withTimeout(readProvider.getBlockNumber(), 12000);
+    const feeData  = await withTimeout(readProvider.getFeeData(),     12000);
+    const bal      = await withTimeout(readProvider.getBalance(userAddress), 12000);
+    const code     = await withTimeout(readProvider.getCode(userAddress),    12000);
+
+    // ── Sukses ── reset failure counters
+    statFailures = 0;
+    pollFailures = 0;
     balance = bal;
     const balFmt = parseFloat(ethers.formatEther(bal)).toFixed(4);
     const gasGwei = feeData.gasPrice
@@ -2232,8 +2261,10 @@ async function refreshStats() {
     document.getElementById('stat-balance').textContent   = balFmt;
     document.getElementById('stat-block').textContent     = blockNum.toLocaleString();
     document.getElementById('stat-type').textContent      = accountType;
-    document.getElementById('stat-status').textContent    = 'Online';
-    document.getElementById('stat-status').className      = 'stat-value green';
+
+    // ── Update Network Status → Online ──
+    setNetworkOnline();
+
     document.getElementById('net-block').textContent      = blockNum.toLocaleString();
     document.getElementById('net-gas').textContent        = gasGwei + ' Gwei';
     document.getElementById('wallet-balance-detail').textContent = balFmt;
@@ -2243,8 +2274,54 @@ async function refreshStats() {
     await fetchGasHistoryForChart(gasGwei);
     updateGasEstimateUI();
   } catch(e) {
-    document.getElementById('stat-status').textContent = 'Error';
-    document.getElementById('stat-status').style.color = 'var(--red)';
+    statFailures++;
+    // Rotasi RPC pada kegagalan pertama agar segera pakai fallback
+    if (statFailures === 1) {
+      rotateRpc();
+    }
+    // Tampilkan Error hanya setelah 3 kegagalan berturut-turut
+    if (statFailures >= 3) {
+      setNetworkError();
+    }
+  }
+}
+
+// ── Helpers: set UI Network Online / Error ──
+function setNetworkOnline() {
+  const statEl = document.getElementById('stat-status');
+  if (statEl) {
+    statEl.textContent = 'Online';
+    statEl.className   = 'stat-value green';
+    statEl.style.color = '';
+  }
+  const badge = document.getElementById('network-status-badge');
+  if (badge) {
+    badge.className = 'status-badge online';
+    badge.innerHTML = '<span class="pulse-dot" style="width:5px;height:5px;"></span> Online';
+  }
+  const dot = document.getElementById('net-dot');
+  if (dot) {
+    dot.style.background = 'var(--green)';
+    dot.style.boxShadow  = '0 0 6px var(--green)';
+  }
+}
+
+function setNetworkError() {
+  const statEl = document.getElementById('stat-status');
+  if (statEl) {
+    statEl.textContent = 'Error';
+    statEl.className   = 'stat-value';
+    statEl.style.color = 'var(--red)';
+  }
+  const badge = document.getElementById('network-status-badge');
+  if (badge) {
+    badge.className = 'status-badge offline';
+    badge.innerHTML = 'Offline';
+  }
+  const dot = document.getElementById('net-dot');
+  if (dot) {
+    dot.style.background = 'var(--red)';
+    dot.style.boxShadow  = '0 0 6px var(--red)';
   }
 }
 
@@ -2338,18 +2415,38 @@ function startBlockListener() {
   });
 }
 
-// ── Poll Network ──
+// ── Poll Network (lightweight ping setiap 10 detik) ──
 async function pollNetwork() {
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+    ]);
+  }
   try {
-    await readProvider.getBlockNumber();
-    document.getElementById('network-status-badge').className = 'status-badge online';
-    document.getElementById('network-status-badge').innerHTML =
-      '<span class="pulse-dot" style="width:5px;height:5px;"></span> Online';
-    document.getElementById('net-dot').style.background = 'var(--green)';
+    await withTimeout(readProvider.getBlockNumber(), 9000);
+    // ── Sukses: network online ──
+    pollFailures = 0;
+    statFailures = 0;
+    setNetworkOnline();
   } catch {
-    document.getElementById('network-status-badge').className = 'status-badge offline';
-    document.getElementById('network-status-badge').innerHTML = 'Offline';
-    document.getElementById('net-dot').style.background = 'var(--red)';
+    pollFailures++;
+    if (pollFailures === 1) {
+      // Langsung coba RPC berikutnya dalam pool
+      rotateRpc();
+      // Quick retry setelah rotasi (tanpa delay)
+      try {
+        await withTimeout(readProvider.getBlockNumber(), 9000);
+        pollFailures = 0;
+        statFailures = 0;
+        setNetworkOnline();
+        return;
+      } catch { /* lanjut ke error handling */ }
+    }
+    // Tampilkan Error hanya setelah 3 kegagalan (termasuk retry)
+    if (pollFailures >= 3) {
+      setNetworkError();
+    }
   }
 }
 
