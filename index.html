@@ -1865,179 +1865,58 @@ async function importNftContract() {
 async function loadNfts() {
   const el = document.getElementById('nft-list');
   if (!el) return;
-  el.innerHTML = '<div class="loading-state" style="grid-column: span 2;">Scanning NFT logs...</div>';
+  el.innerHTML = '<div class="loading-state" style="grid-column:span 2;">Scanning for NFTs on Ritual Chain...</div>';
 
-  const addr = userAddress.toLowerCase();
-  const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
-  const addrPadded = '0x' + addr.slice(2).padStart(64, '0');
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 55000); // Vercel function timeout is 60s
+    const res = await fetch(`/api/nfts?address=${userAddress}`, { signal: controller.signal });
+    clearTimeout(tid);
 
-  // Use raw JSON-RPC POST (bypasses ethers getLogs range limits)
-  async function rawGetLogs(rpcUrl, fromBlock, toBlock, topics, address) {
-    const params = [{ fromBlock: '0x' + fromBlock.toString(16), toBlock: '0x' + toBlock.toString(16), topics }];
-    if (address) params[0].address = address;
-    const res = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getLogs', params, id: 1 }),
-      signal: AbortSignal.timeout(12000)
-    });
-    const json = await res.json();
-    if (json.error) throw new Error(json.error.message);
-    return json.result || [];
-  }
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const data = await res.json();
+    const nfts = data.nfts || [];
 
-  let latestBlock;
-  let workingRpc;
-  for (const rpc of RPC_POOL) {
-    try {
-      const res = await fetch(rpc, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
-        signal: AbortSignal.timeout(8000)
-      });
-      const json = await res.json();
-      latestBlock = parseInt(json.result, 16);
-      workingRpc = rpc;
-      break;
-    } catch { /* try next */ }
-  }
-
-  if (!workingRpc) {
-    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">Cannot connect to Ritual RPC. Check network.</div>';
-    return;
-  }
-
-  // Scan 5 chunks of 100k blocks (500k total history)
-  const CHUNK = 100000;
-  const DEPTH = 500000;
-  const startBlock = Math.max(0, latestBlock - DEPTH);
-  const discoveredMap = new Map();
-
-  for (let from = startBlock; from < latestBlock; from += CHUNK) {
-    const to = Math.min(from + CHUNK - 1, latestBlock);
-    try {
-      // NFTs received by this address (3 indexed topics = ERC-721)
-      const logsTo = await rawGetLogs(workingRpc, from, to, [TRANSFER_TOPIC, null, addrPadded]);
-      logsTo.forEach(log => {
-        if (log.topics.length === 4) {
-          const tokenId = BigInt(log.topics[3]).toString();
-          const key = `${log.address.toLowerCase()}_${tokenId}`;
-          discoveredMap.set(key, { contractAddress: log.address.toLowerCase(), tokenId });
-        }
-      });
-      // Also scan tokens sent FROM address (to track and verify current ownership)
-      const logsFrom = await rawGetLogs(workingRpc, from, to, [TRANSFER_TOPIC, addrPadded, null]);
-      logsFrom.forEach(log => {
-        if (log.topics.length === 4) {
-          const tokenId = BigInt(log.topics[3]).toString();
-          const key = `${log.address.toLowerCase()}_${tokenId}`;
-          // Still add — ownerOf check will filter out sent ones
-          discoveredMap.set(key, { contractAddress: log.address.toLowerCase(), tokenId });
-        }
-      });
-    } catch (e) { console.warn(`NFT chunk ${from}-${to} failed:`, e.message); }
-  }
-
-  // Also scan custom imported NFT contracts
-  const customContracts = getCustomNftContracts();
-  if (customContracts.length > 0) {
-    for (let from = startBlock; from < latestBlock; from += CHUNK) {
-      const to = Math.min(from + CHUNK - 1, latestBlock);
-      try {
-        const customLogs = await rawGetLogs(workingRpc, from, to, [TRANSFER_TOPIC, null, addrPadded], customContracts);
-        customLogs.forEach(log => {
-          if (log.topics.length === 4) {
-            const tokenId = BigInt(log.topics[3]).toString();
-            const key = `${log.address.toLowerCase()}_${tokenId}`;
-            discoveredMap.set(key, { contractAddress: log.address.toLowerCase(), tokenId });
-          }
-        });
-      } catch { /* skip */ }
+    if (nfts.length === 0) {
+      el.innerHTML = `<div class="empty-state" style="grid-column:span 2;padding:28px;text-align:center;">
+        <span style="font-size:36px;display:block;margin-bottom:10px;">🖼️</span>
+        <p style="opacity:0.7;margin-bottom:0;">${data.message || 'No NFTs found in this wallet.'}</p>
+      </div>`;
+      return;
     }
-  }
 
-  const uniqueTokens = Array.from(discoveredMap.values());
-
-  if (uniqueTokens.length === 0) {
-    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No NFTs found in wallet history (last 500k blocks).</div>';
-    return;
-  }
-
-  // Show progress while resolving
-  el.innerHTML = `<div class="loading-state" style="grid-column: span 2;">Found ${uniqueTokens.length} token(s), verifying ownership...</div>`;
-
-  const nftAbi = [
-    'function name() view returns (string)',
-    'function tokenURI(uint256) view returns (string)',
-    'function ownerOf(uint256) view returns (address)'
-  ];
-
-  const nftItemsHTML = [];
-
-  for (const t of uniqueTokens) {
-    try {
-      const contract = new ethers.Contract(t.contractAddress, nftAbi, readProvider);
-
-      // Verify ownership
-      let owner;
-      try { owner = await contract.ownerOf(t.tokenId); } catch { continue; }
-      if (owner.toLowerCase() !== addr) continue;
-
-      let collectionName = 'NFT';
-      try { collectionName = await contract.name(); } catch {}
-
-      let tokenUri = '';
-      try { tokenUri = await contract.tokenURI(t.tokenId); } catch {}
-
-      let name = `${collectionName} #${t.tokenId}`;
-      let imageUrl = '';
-
-      if (tokenUri) {
-        try {
-          let metadata;
-          if (tokenUri.startsWith('data:application/json;base64,')) {
-            metadata = JSON.parse(atob(tokenUri.split(',')[1]));
-          } else {
-            const fetchUrl = tokenUri.startsWith('ipfs://')
-              ? tokenUri.replace('ipfs://', 'https://ipfs.io/ipfs/')
-              : tokenUri;
-            const r = await fetch(fetchUrl, { signal: AbortSignal.timeout(8000) });
-            metadata = await r.json();
-          }
-          if (metadata.name) name = metadata.name;
-          imageUrl = metadata.image || metadata.image_url || '';
-          if (imageUrl.startsWith('ipfs://')) imageUrl = imageUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
-        } catch { /* use defaults */ }
-      }
-
-      const shortAddr = t.contractAddress.slice(0,8) + '...' + t.contractAddress.slice(-6);
-      const explorerNftUrl = `${EXPLORER}/token/${t.contractAddress}?a=${t.tokenId}`;
-
-      nftItemsHTML.push(`<div class="nft-card" onclick="window.open('${explorerNftUrl}','_blank')" style="cursor:pointer;" title="View on Explorer">
+    el.innerHTML = nfts.map(nft => `
+      <div class="nft-card" onclick="window.open('${nft.explorerUrl}','_blank')" style="cursor:pointer;" title="View on Explorer">
         <div class="nft-img-wrap">
-          ${imageUrl
-            ? `<img src="${imageUrl}" class="nft-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+          ${nft.imageUrl
+            ? `<img src="${nft.imageUrl}" class="nft-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
             : ''
           }
-          <div class="nft-placeholder" style="${imageUrl ? 'display:none;' : ''}">
+          <div class="nft-placeholder" style="${nft.imageUrl ? 'display:none;' : ''}">
             <span style="font-size:32px;">🎨</span>
-            <span style="font-size:11px;margin-top:6px;opacity:0.6;">#${t.tokenId}</span>
+            <span style="font-size:11px;margin-top:6px;opacity:0.6;">#${nft.tokenId}</span>
           </div>
         </div>
         <div class="nft-meta">
-          <div class="nft-name" title="${name}">${name}</div>
-          <div class="nft-collection" title="${t.contractAddress}">${collectionName}</div>
+          <div class="nft-name" title="${nft.name}">${nft.name}</div>
+          <div class="nft-collection" title="${nft.contract}">${nft.collectionName}</div>
         </div>
-      </div>`);
-    } catch { /* skip faulty contract */ }
-  }
+      </div>`).join('');
 
-  if (nftItemsHTML.length === 0) {
-    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No owned NFTs found. You may have transferred them out.</div>';
-  } else {
-    el.innerHTML = nftItemsHTML.join('');
+  } catch (err) {
+    console.warn('NFT serverless fetch failed:', err.message);
+    // Fallback: simple message with explorer link
+    el.innerHTML = `<div class="empty-state" style="grid-column:span 2;padding:24px;text-align:center;">
+      <p style="opacity:0.7;margin-bottom:14px;">NFT scan unavailable. Check NFTs directly on the explorer.</p>
+      <a href="${EXPLORER}/address/${userAddress}#tokentxnsErc721" target="_blank" rel="noopener"
+         style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:linear-gradient(135deg,#c9a84c,#e8c56a);color:#0d0d15;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;">
+        View NFTs on Explorer &#8599;
+      </a>
+    </div>`;
   }
 }
+
+
 
 function toggleTheme() {
   const isLight = document.body.classList.toggle('light-theme');
