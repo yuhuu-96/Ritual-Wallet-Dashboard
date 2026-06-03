@@ -1247,7 +1247,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
       Connect Wallet
     </button>
     <p style="font-family:var(--font-mono);font-size:11px;color:var(--text-3);letter-spacing:0.1em;">
-      MetaMask &middot; OKX &middot; WalletConnect
+      MetaMask &middot; OKX
     </p>
 
     <!-- ── Wallet Picker Modal ── -->
@@ -1258,27 +1258,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           <button onclick="closeWalletModal()" style="background:none;border:none;color:var(--text-2);font-size:20px;cursor:pointer;line-height:1;">&#10005;</button>
         </div>
         <div id="wallet-list" class="wallet-list"></div>
-        <p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:12px;">Connecting options for browser extensions and mobile apps.</p>
-      </div>
-    </div>
-
-    <!-- ── WalletConnect QR Modal ── -->
-    <div id="wc-qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(10px);" onclick="if(event.target===this)cancelWCConnect()">
-      <div style="background:var(--surface-2);border:1px solid var(--border-1);border-radius:24px;padding:32px 28px;max-width:370px;width:92%;text-align:center;position:relative;box-shadow:0 24px 80px rgba(0,0,0,0.6);">
-        <button onclick="cancelWCConnect()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.06);border:none;color:var(--text-2);font-size:16px;cursor:pointer;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;">&#10005;</button>
-        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;">
-          <svg viewBox="0 0 40 40" fill="none" width="30" height="30"><rect width="40" height="40" rx="8" fill="#3396FF"/><path d="M11.8 17.2c4.5-4.4 11.9-4.4 16.4 0l.5.5c.2.2.2.5 0 .7l-1.9 1.9c-.1.1-.3.1-.4 0l-.7-.7c-3.1-3.1-8.2-3.1-11.4 0l-.8.7c-.1.1-.3.1-.4 0l-1.9-1.9c-.2-.2-.2-.5 0-.7l.6-.5zm20.3 3.8 1.7 1.7c.2.2.2.5 0 .7l-7.8 7.8c-.2.2-.5.2-.7 0l-5.5-5.5c0-.1-.1-.1-.2 0l-5.5 5.5c-.2.2-.5.2-.7 0L5.7 23.4c-.2-.2-.2-.5 0-.7l1.7-1.7c.2-.2.5-.2.7 0l5.5 5.5c0 .1.1.1.2 0l5.5-5.5c.2-.2.5-.2.7 0l5.5 5.5c0 .1.1.1.2 0l5.5-5.5c.2-.1.5-.1.7.1z" fill="white"/></svg>
-          <span style="font-size:17px;font-weight:700;color:var(--text-1);">WalletConnect</span>
-        </div>
-        <p style="font-size:12px;color:var(--text-3);margin-bottom:20px;letter-spacing:0.02em;">Scan with your mobile wallet to connect</p>
-        <div id="wc-qr-canvas" style="display:flex;align-items:center;justify-content:center;background:#ffffff;border-radius:16px;padding:16px;margin-bottom:16px;min-height:230px;">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
-            <div style="width:36px;height:36px;border:3px solid #3396FF;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-            <span style="color:#666;font-size:12px;">Loading QR code...</span>
-          </div>
-        </div>
-        <button id="wc-copy-btn" onclick="copyWCUri()" style="display:none;background:var(--surface-3);border:1px solid var(--border-1);color:var(--text-2);padding:9px 16px;border-radius:10px;cursor:pointer;font-size:12px;width:100%;margin-bottom:8px;transition:background 0.2s;" onmouseover="this.style.background='var(--surface-4)'" onmouseout="this.style.background='var(--surface-3)'">📋 Copy connection link</button>
-        <p id="wc-status-text" style="font-size:11px;color:var(--text-3);">Waiting for wallet scan...</p>
+        <p style="font-size:11px;color:var(--text-3);text-align:center;margin-top:12px;">Connecting options for browser extensions.</p>
       </div>
     </div>
   </div>
@@ -2216,16 +2196,12 @@ function detectLegacyWallets() {
   return found;
 }
 
-// WalletConnect Project ID — get yours at https://cloud.walletconnect.com
-const WC_PROJECT_ID = '326d7bc0ca01c0e1632e9bd8cc7f6fd2'; // Reown AppKit Project ID
-
 const WALLET_ICONS = {
   metamask: `<svg viewBox="0 0 318.6 318.6" width="100%" height="100%"><path fill="#e2761b" stroke="#e2761b" stroke-linecap="round" stroke-linejoin="round" d="m274.1 35.5-99.5 73.9L193 65.8z"/><path fill="#e4761b" stroke="#e4761b" stroke-linecap="round" stroke-linejoin="round" d="m44.4 35.5 98.7 74.6-17.5-44.3zm193.9 171.3-26.5 40.6 56.7 15.6 16.3-55.3zm-204.4.9L50.1 263l56.7-15.6-26.5-40.6z"/><path fill="#e4761b" stroke="#e4761b" stroke-linecap="round" stroke-linejoin="round" d="m103.6 138.2-15.8 23.9 56.3 2.5-2-60.5zm111.3 0-39-34.8-1.3 61.2 56.2-2.5zM106.8 247.4l33.8-16.5-29.2-22.8zm71.1-16.5 33.9 16.5-4.7-39.3z"/><path fill="#d7c1b3" stroke="#d7c1b3" stroke-linecap="round" stroke-linejoin="round" d="m211.8 247.4-33.9-16.5 2.7 22.1-.3 9.3zm-105 0 31.5 14.9-.2-9.3 2.5-22.1z"/><path fill="#233447" stroke="#233447" stroke-linecap="round" stroke-linejoin="round" d="m138.8 193.5-28.2-8.3 19.9-9.1zm40.9 0 8.3-17.4 20 9.1z"/><path fill="#cd6116" stroke="#cd6116" stroke-linecap="round" stroke-linejoin="round" d="m106.8 247.4 4.8-40.6-31.3.9zM207 206.8l4.8 40.6 26.5-39.7zm23.8-44.7-56.2 2.5 5.2 28.9 8.3-17.4 20 9.1zm-120.2 23.1 20-9.1 8.2 17.4 5.3-28.9-56.3-2.5z"/><path fill="#e4751f" stroke="#e4751f" stroke-linecap="round" stroke-linejoin="round" d="m87.8 162.1 23.6 46-.8-22.9zm120.3 23.1-1 22.9 23.7-46zm-64-20.6-5.3 28.9 6.6 34.1 1.5-44.9zm30.5 0-2.7 18 1.2 45 6.7-34.1z"/><path fill="#f6851b" stroke="#f6851b" stroke-linecap="round" stroke-linejoin="round" d="m179.8 193.5-6.7 34.1 4.8 3.3 29.2-22.8 1-22.9zm-69.2-8.3.8 22.9 29.2 22.8 4.8-3.3-6.6-34.1z"/><path fill="#c0ad9e" stroke="#c0ad9e" stroke-linecap="round" stroke-linejoin="round" d="m180.3 262.3.3-9.3-2.5-2.2h-37.7l-2.3 2.2.2 9.3-31.5-14.9 11 9 22.3 15.5h38.3l22.4-15.5 11-9z"/><path fill="#161616" stroke="#161616" stroke-linecap="round" stroke-linejoin="round" d="m177.9 230.9-4.8-3.3h-27.7l-4.8 3.3-2.5 22.1 2.3-2.2h37.7l2.5 2.2z"/><path fill="#763d16" stroke="#763d16" stroke-linecap="round" stroke-linejoin="round" d="m278.3 114.2 8.5-40.8-12.7-37.9-96.2 71.4 37 31.3 52.3 15.3 11.6-13.5-5-3.6 8-7.3-6.2-4.8 8-6.1zM31.8 73.4l8.5 40.8-5.4 4 8 6.1-6.1 4.8 8 7.3-5 3.6 11.5 13.5 52.3-15.3 37-31.3-96.2-71.4z"/><path fill="#f6851b" stroke="#f6851b" stroke-linecap="round" stroke-linejoin="round" d="m267.2 153.5-52.3-15.3 15.9 23.9-23.7 46 31.2-.4h46.5zm-163.6-15.3-52.3 15.3-17.4 54.2h46.4l31.1.4-23.6-46zm71 26.4 3.3-57.7 15.2-41.1h-67.5l15 41.1 3.5 57.7 1.2 18.2.1 44.8h27.7l.2-44.8z"/></svg>`,
-  okx: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#000"/><path d="M15.5 10h-5A.5.5 0 0 0 10 10.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm14 0h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm-7 7h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm-7 7h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm14 0h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5z" fill="#fff"/></svg>`,
-  walletconnect: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#3396FF"/><path d="M11.8 17.2c4.5-4.4 11.9-4.4 16.4 0l.5.5c.2.2.2.5 0 .7l-1.9 1.9c-.1.1-.3.1-.4 0l-.7-.7c-3.1-3.1-8.2-3.1-11.4 0l-.8.7c-.1.1-.3.1-.4 0l-1.9-1.9c-.2-.2-.2-.5 0-.7l.6-.5zm20.3 3.8 1.7 1.7c.2.2.2.5 0 .7l-7.8 7.8c-.2.2-.5.2-.7 0l-5.5-5.5c0-.1-.1-.1-.2 0l-5.5 5.5c-.2.2-.5.2-.7 0L5.7 23.4c-.2-.2-.2-.5 0-.7l1.7-1.7c.2-.2.5-.2.7 0l5.5 5.5c0 .1.1.1.2 0l5.5-5.5c.2-.2.5-.2.7 0l5.5 5.5c0 .1.1.1.2 0l5.5-5.5c.2-.1.5-.1.7.1z" fill="white"/></svg>`
+  okx: `<svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="8" fill="#000"/><path d="M15.5 10h-5A.5.5 0 0 0 10 10.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm14 0h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm-7 7h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm-7 7h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5zm14 0h-5a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h5a.5.5 0 0 0 .5-.5v-5a.5.5 0 0 0-.5-.5z" fill="#fff"/></svg>`
 };
 
-// ── 3-option fixed wallet modal ──
+// ── 2-option fixed wallet modal ──
 function openWalletModal() {
   const modal = document.getElementById('wallet-modal');
   const list  = document.getElementById('wallet-list');
@@ -2244,12 +2220,6 @@ function openWalletModal() {
     <button class="wallet-option" onclick="connectOKX()">
       ${icon('okx')}
       <span class="wallet-name">OKX Wallet</span>
-      ${chevron}
-    </button>
-    <button class="wallet-option" onclick="connectWalletConnect()">
-      ${icon('walletconnect')}
-      <span class="wallet-name">WalletConnect</span>
-      <span style="font-size:10px;opacity:0.5;margin-left:4px;">(QR Code)</span>
       ${chevron}
     </button>`;
 }
@@ -2386,129 +2356,6 @@ async function connectOKX() {
   }
 }
 
-// ── WalletConnect custom QR modal helpers ──
-let _wcUri = '';
-let _wcProvider = null;
-
-function showWCQRModal(uri) {
-  _wcUri = uri;
-  const modal = document.getElementById('wc-qr-modal');
-  modal.style.display = 'flex';
-  const container = document.getElementById('wc-qr-canvas');
-  const copyBtn   = document.getElementById('wc-copy-btn');
-
-  container.innerHTML = '';
-  // qrcodejs uses: new QRCode(element, options)
-  try {
-    new QRCode(container, {
-      text: uri,
-      width: 220,
-      height: 220,
-      colorDark: '#000000',
-      colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.H
-    });
-    copyBtn.style.display = 'block';
-  } catch(err) {
-    container.innerHTML = `<p style="color:red;font-size:12px;">QR failed: ${err.message}</p>`;
-  }
-}
-
-function closeWCQRModal() {
-  const modal = document.getElementById('wc-qr-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-function cancelWCConnect() {
-  closeWCQRModal();
-  if (_wcProvider) {
-    try { _wcProvider.disconnect(); } catch(e) {}
-    _wcProvider = null;
-  }
-  const btn = document.getElementById('connect-btn');
-  btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="M16 22l5-5-5-5"/><path d="M21 17H9"/></svg> Connect Wallet`;
-  btn.disabled = false;
-}
-
-function copyWCUri() {
-  if (_wcUri) navigator.clipboard.writeText(_wcUri).then(() => showToast('Link copied!', 'success'));
-}
-
-// ── WalletConnect ──
-async function connectWalletConnect() {
-  closeWalletModal();
-  const btn = document.getElementById('connect-btn');
-  btn.innerHTML = '<span style="opacity:0.7">Loading WalletConnect...</span>';
-  btn.disabled = true;
-
-  try {
-    // 1. Load QR library
-    if (!window.QRCode) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-
-    // 2. Load WalletConnect UniversalProvider via esm.sh
-    //    (EIP-1193 compatible, has display_uri event for QR, no Node.js polyfills needed)
-    btn.innerHTML = '<span style="opacity:0.7">Connecting WalletConnect...</span>';
-
-    const { UniversalProvider } = await import('https://esm.sh/@walletconnect/universal-provider@2.13.0');
-
-    const wcProvider = await UniversalProvider.init({
-      projectId: WC_PROJECT_ID,
-      metadata: {
-        name: 'Ritual Wallet Dashboard',
-        description: 'Live dashboard for Ritual Network',
-        url: window.location.origin,
-        icons: []
-      }
-    });
-
-    _wcProvider = wcProvider;
-
-    // 3. Show QR when URI fires
-    wcProvider.on('display_uri', (uri) => {
-      btn.innerHTML = '<span style="opacity:0.7">Scan QR Code...</span>';
-      showWCQRModal(uri);
-    });
-
-    const chainId = parseInt(RITUAL_CHAIN.chainId, 16);
-
-    // 4. Connect — fires display_uri then waits for wallet scan
-    await wcProvider.connect({
-      namespaces: {
-        eip155: {
-          methods: [
-            'eth_sendTransaction', 'eth_signTransaction',
-            'eth_sign', 'personal_sign', 'eth_signTypedData',
-            'wallet_switchEthereumChain', 'wallet_addEthereumChain'
-          ],
-          chains: [`eip155:${chainId}`],
-          events: ['chainChanged', 'accountsChanged'],
-          rpcMap: { [chainId]: RITUAL_CHAIN.rpcUrls[0] }
-        }
-      }
-    });
-
-    closeWCQRModal();
-    _wcProvider = null;
-    await finishConnect(wcProvider, 'WalletConnect');
-  } catch (e) {
-    closeWCQRModal();
-    _wcProvider = null;
-    if (e.message?.includes('rejected') || e.message?.includes('cancel') || e.message?.includes('closed')) {
-      showToast('WalletConnect cancelled', 'error');
-    } else {
-      showToast(e.message || 'WalletConnect failed', 'error');
-    }
-    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="M16 22l5-5-5-5"/><path d="M21 17H9"/></svg> Connect Wallet`;
-    btn.disabled = false;
-  }
-}
 
 async function connectWallet() {
   openWalletModal();
