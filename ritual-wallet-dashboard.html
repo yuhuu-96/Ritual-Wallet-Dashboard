@@ -2471,64 +2471,93 @@ async function loadTxHistory() {
   const el = document.getElementById('tx-list');
   if (!el) return;
 
+  el.innerHTML = '<div class="loading-state">Loading transactions...</div>';
+
   const addr = userAddress;
   const explorerUrl = `${EXPLORER}/address/${addr}`;
   
   // Update CSV button display
   const csvBtn = document.getElementById('export-csv-btn');
-  if (csvBtn) csvBtn.style.display = 'inline-flex';
+  if (csvBtn) csvBtn.style.display = 'none';
 
-  // Define 3 recent transactions pointing directly to the user's explorer URL
-  const mockTxs = [
-    {
-      hash: "0x7a2b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
-      type: "out",
-      typeLabel: "Send RITUAL",
-      icon: "↑",
-      peer: "0x5352c6f6...",
-      value: "0.2500",
-      time: "2m ago"
-    },
-    {
-      hash: "0x1f4c7b8a9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b",
-      type: "ctr",
-      typeLabel: "Contract Interaction",
-      icon: "◈",
-      peer: "Ritual Portal",
-      value: "0.0000",
-      time: "15m ago"
-    },
-    {
-      hash: "0x4e9d3c2b1a0f9e8d7c6b5a4e3d2c1b0a9f8e7d6c",
-      type: "in",
-      typeLabel: "Receive RITUAL",
-      icon: "↓",
-      peer: "0x12a4b88d...",
-      value: "5.0000",
-      time: "1h ago"
+  try {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const toDateStr = today.toISOString().slice(0, 10);
+    const fromDateStr = thirtyDaysAgo.toISOString().slice(0, 10);
+
+    const targetUrl = `https://explorer.ritualfoundation.org/api/indexer-proxy/api/v1/addresses/${addr}/transactions?limit=3&offset=0&from_date=${fromDateStr}&to_date=${toDateStr}`;
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error("Proxy error");
+
+    const data = await response.json();
+    const txs = data.transactions || [];
+
+    if (txs.length === 0) {
+      el.innerHTML = '<div class="empty-state">No transactions found in the last 30 days.</div>';
+      return;
     }
-  ];
 
-  // Save mock data for CSV exporter
-  window.walletTransactions = mockTxs.map(tx => ({
-    hash: tx.hash,
-    blockNumber: "27715000",
-    blockTimestamp: Math.floor(Date.now() / 1000) - 300,
-    from: tx.type === 'in' ? tx.peer : addr,
-    to: tx.type === 'out' ? tx.peer : (tx.type === 'ctr' ? 'Contract' : addr),
-    value: ethers.parseEther(tx.value)
-  }));
+    if (csvBtn) csvBtn.style.display = 'inline-flex';
 
-  el.innerHTML = mockTxs.map(tx => {
-    return `<div class="tx-item" onclick="window.open('${explorerUrl}','_blank')" style="cursor: pointer;" title="View on Explorer">
-      <div class="tx-badge ${tx.type}">${tx.icon}</div>
-      <div class="tx-info">
-        <div class="tx-hash">${tx.typeLabel}</div>
-        <div class="tx-meta">Ref: ${tx.hash.slice(0, 10)}... | ${tx.time}</div>
-      </div>
-      <div class="tx-amount ${tx.type === 'ctr' ? '' : tx.type}">${tx.type === 'out' ? '−' : '+'}${tx.value} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
+    // Store globally for CSV exporter
+    window.walletTransactions = txs.map(tx => ({
+      hash: tx.tx_hash,
+      blockNumber: tx.block_number,
+      blockTimestamp: Math.floor(tx.block_timestamp / 1000),
+      from: tx.from_address,
+      to: tx.to_address,
+      value: BigInt(tx.value || "0x0")
+    }));
+
+    el.innerHTML = txs.map(tx => {
+      const isOut = tx.from_address?.toLowerCase() === addr.toLowerCase();
+      const dir = tx.to_address ? (isOut ? 'out' : 'in') : 'ctr';
+      const icon = dir === 'out' ? '↑' : dir === 'in' ? '↓' : '◈';
+      
+      const valInWei = BigInt(tx.value || "0x0");
+      const val = parseFloat(ethers.formatEther(valInWei)).toFixed(4);
+      
+      const shortH = tx.tx_hash.slice(0, 10) + '...' + tx.tx_hash.slice(-6);
+      
+      let peer = '—';
+      if (isOut) {
+        peer = tx.to_address ? tx.to_address.slice(0, 8) + '...' + tx.to_address.slice(-6) : 'Contract';
+      } else {
+        peer = tx.from_address ? tx.from_address.slice(0, 8) + '...' + tx.from_address.slice(-6) : '—';
+      }
+
+      // Format method label
+      let typeLabel = isOut ? 'Send RITUAL' : 'Receive RITUAL';
+      if (tx.method_selector && tx.method_selector !== '0x') {
+        typeLabel = `Interact (${tx.method_selector})`;
+      } else if (!tx.to_address) {
+        typeLabel = 'Contract Deploy';
+      }
+
+      const time = tx.block_timestamp ? getTimeAgo(Math.floor(tx.block_timestamp / 1000)) : '';
+
+      return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${tx.tx_hash}','_blank')" style="cursor: pointer;" title="View on Explorer">
+        <div class="tx-badge ${dir}">${icon}</div>
+        <div class="tx-info">
+          <div class="tx-hash">${typeLabel}</div>
+          <div class="tx-meta">Ref: ${shortH} | ${isOut ? 'To' : 'From'}: ${peer} | ${time}</div>
+        </div>
+        <div class="tx-amount ${dir === 'ctr' ? '' : dir}">${isOut ? '−' : '+'}${val} <span style="font-size:10px;opacity:0.6">RITUAL</span></div>
+      </div>`;
+    }).join('');
+
+  } catch (err) {
+    console.error("Failed to load real-time tx history:", err);
+    el.innerHTML = `<div class="empty-state">
+      <p style="margin-bottom: 8px;">Failed to load real-time transactions from indexer proxy.</p>
+      <button class="btn" onclick="window.open('${explorerUrl}', '_blank')" style="padding: 6px 12px; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+        View on Block Explorer ↗
+      </button>
     </div>`;
-  }).join('');
+  }
 }
 
 function getTimeAgo(ts) {
