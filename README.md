@@ -1,113 +1,248 @@
-# Ritual Wallet Dashboard
+# WalletConnect (Reown AppKit) Integration Guide
 
-[![GitHub Pages](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-gold?style=for-the-badge&logo=github)](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
-[![Network](https://img.shields.io/badge/Network-Ritual%20Testnet-purple?style=for-the-badge)](https://ritual.net/)
-[![Chain ID](https://img.shields.io/badge/Chain%20ID-1979-blue?style=for-the-badge)]()
+Integrasi wallet multi-provider ke dApp Anda: MetaMask, OKX Wallet, dan QR Code.
 
-> ❖ **Live App:** [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
-
-A single-page **Web3 command center** for the **Ritual Testnet**. No backend, no database — all data is fetched directly from the Ritual RPC node in real-time via the browser.
-
----
-
-## ❖ Features
-
-| Feature | Description |
-|---|---|
-|  **Wallet Connect** | MetaMask integration with **auto network add** for Ritual Testnet |
-|  **Wallet Info** | Connected address, RITUAL balance, one-click copy with custom checkmark animation & disconnect |
-|  **Light/Dark Switcher** | Premium, buttery-smooth **Light/Dark mode switcher** with custom glassmorphic overrides & theme-responsive chart coloring |
-|  **Network Stats** | Live block number, gas price, and green **Live dot indicator** synchronized with RPC |
-|  **RPC Switcher & Ping** | Interactive **Custom RPC switcher** with a built-in connection latency speed checker (latency/ping in ms) |
-|  **Activity Refresh** | Visual circular **countdown timer** showing upcoming refreshes |
-|  **Block Time Sparkline** | Real-time **pure Canvas sparkline** tracking the last 20 block intervals with bezier curves & glow effects |
-|  **Gas Price Sparkline** | Real-time **pure Canvas sparkline** showing the gas price trend over recent updates |
-|  **Transaction History** | Last 10 txs for your wallet fetched via RPC (scans last 100 blocks) |
-|  **CSV Exporter** | One-click **CSV exporter** to download parsed transaction history as a spreadsheet |
-|  **Quick Send** | Send RITUAL directly from the dashboard with MAX amount helper |
-|  **Address Book** | Local storage-based **contacts manager** to save frequently used addresses and nicknames |
-|  **Priority Gas Presets** | Choose transaction speeds (Slow/Standard/Fast) with a real-time **estimated fee calculator** |
-|  **NFT Gallery** | Automated **ERC-721 block logs scanner** and custom contract importer with IPFS & Base64 JSON metadata resolution |
-|  **Explorer Shortcut** | Direct link to Ritual Explorer for the connected address |
-|  **Mobile Responsive** | Fully optimized **responsive layouts & font scaling** for small and narrow screens |
+## Tech Stack
+- **Reown AppKit** (formerly WalletConnect)
+- **Wagmi v2** + **Viem**
+- **React** / **Next.js**
 
 ---
 
-## ❖ Quick Start
+## 1. Install Dependencies
 
-### Option 1 — Use the Live Demo
-Click here: [https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/](https://yuhuu-96.github.io/Ritual-Wallet-Dashboard/)
-
-### Option 2 — Run Locally
 ```bash
-git clone https://github.com/yuhuu-96/Ritual-Wallet-Dashboard.git
-cd Ritual-Wallet-Dashboard
-# Open index.html in your browser
-start index.html
+npm install @reown/appkit @reown/appkit-adapter-wagmi wagmi viem @tanstack/react-query
 ```
 
 ---
 
-## ❖  Network Configuration
+## 2. Dapatkan Project ID
 
-| Property | Value |
-|---|---|
-| **Network Name** | Ritual |
-| **Chain ID** | 1979 |
-| **RPC URL** | https://rpc.ritualfoundation.org |
-| **Currency Symbol** | RITUAL |
-| **Block Explorer** | https://explorer.ritualfoundation.org |
-
-> MetaMask will be prompted to **add this network automatically** when you click Connect.
+1. Buka https://cloud.reown.com (dulu cloud.walletconnect.com)
+2. Buat project baru
+3. Copy **Project ID** Anda
 
 ---
 
-## ❖ How It Works
+## 3. File: `src/config/wagmi.ts`
 
-```
-User opens page
-     ↓
-Clicks "Connect Wallet"
-     ↓
-MetaMask prompts → Add Ritual Network (Chain 1979) if not present
-     ↓
-Dashboard loads:
-  ├── Wallet balance (via RPC)
-  ├── Block number + gas price (live polling every 12s)
-  ├── Transaction history (scan last 100 blocks)
-  └── Explorer link
-```
+```ts
+import { createAppKit } from '@reown/appkit/react'
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { mainnet, polygon, bsc } from '@reown/appkit/networks'
 
----
+// Ganti dengan Project ID Anda dari https://cloud.reown.com
+export const projectId = 'YOUR_PROJECT_ID'
 
-## ❖ Tech Stack
+export const networks = [mainnet, polygon, bsc]
 
-- **Pure HTML + CSS + JavaScript** — zero frameworks, zero dependencies
-- **[ethers.js v6](https://docs.ethers.org/v6/)** — loaded via CDN
-- **MetaMask** — wallet provider & transaction signer
-- **Ritual RPC** — `https://rpc.ritualfoundation.org`
+export const wagmiAdapter = new WagmiAdapter({
+  projectId,
+  networks,
+})
 
----
-
-## ❖ Files
-
-```
-Ritual-Wallet-Dashboard/
-├── index.html                  # Main entry (GitHub Pages)
-├── ritual-wallet-dashboard.html # Dashboard source
-├── README.md
-├── .nojekyll                   # GitHub Pages config
-└── .gitignore
+export const modal = createAppKit({
+  adapters: [wagmiAdapter],
+  projectId,
+  networks,
+  defaultNetwork: mainnet,
+  metadata: {
+    name: 'My dApp',
+    description: 'My Decentralized Application',
+    url: 'https://mydapp.com',
+    icons: ['https://mydapp.com/icon.png'],
+  },
+  features: {
+    analytics: true,
+  },
+  // Wallet yang akan ditampilkan (opsional - jika tidak diset, semua wallet ditampilkan)
+  // featuredWalletIds: [
+  //   'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
+  //   'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // OKX
+  // ],
+})
 ```
 
 ---
 
-## ❖ Related
+## 4. File: `src/providers/Web3Provider.tsx`
 
-- [Ritual Network](https://ritual.net/)
-- [Ritual Explorer](https://explorer.ritualfoundation.org)
-- [Ritual Testnet RPC](https://rpc.ritualfoundation.org)
+```tsx
+'use client' // hanya untuk Next.js App Router
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { WagmiProvider } from 'wagmi'
+import { wagmiAdapter } from '../config/wagmi'
+import '../config/wagmi' // pastikan modal terinisialisasi
+
+const queryClient = new QueryClient()
+
+export function Web3Provider({ children }: { children: React.ReactNode }) {
+  return (
+    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    </WagmiProvider>
+  )
+}
+```
 
 ---
 
-> *No API keys. No backend. No database. Pure RPC calls.*
+## 5. File: `src/components/ConnectButton.tsx`
+
+```tsx
+'use client'
+
+import { useAppKit, useAppKitAccount } from '@reown/appkit/react'
+import { useDisconnect } from 'wagmi'
+
+export function ConnectButton() {
+  const { open } = useAppKit()
+  const { address, isConnected } = useAppKitAccount()
+  const { disconnect } = useDisconnect()
+
+  const shortAddress = address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : ''
+
+  if (isConnected) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-mono bg-gray-100 px-3 py-1.5 rounded-lg">
+          {shortAddress}
+        </span>
+        <button
+          onClick={() => disconnect()}
+          className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600"
+        >
+          Disconnect
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => open()}
+      className="px-6 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors"
+    >
+      Connect Wallet
+    </button>
+  )
+}
+```
+
+---
+
+## 6. Wrap App di `layout.tsx` (Next.js) atau `main.tsx` (React)
+
+### Next.js App Router — `app/layout.tsx`
+```tsx
+import { Web3Provider } from '../providers/Web3Provider'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Web3Provider>
+          {children}
+        </Web3Provider>
+      </body>
+    </html>
+  )
+}
+```
+
+### React (Vite) — `src/main.tsx`
+```tsx
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import { Web3Provider } from './providers/Web3Provider'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <Web3Provider>
+      <App />
+    </Web3Provider>
+  </React.StrictMode>
+)
+```
+
+---
+
+## 7. Pakai di halaman/komponen manapun
+
+```tsx
+import { ConnectButton } from '../components/ConnectButton'
+
+export default function HomePage() {
+  return (
+    <main>
+      <h1>My dApp</h1>
+      <ConnectButton />
+    </main>
+  )
+}
+```
+
+---
+
+## Wallet yang Didukung Otomatis
+
+Modal AppKit sudah mendukung 300+ wallet termasuk:
+- ✅ MetaMask (extension & mobile)
+- ✅ OKX Wallet
+- ✅ QR Code (semua wallet mobile via WalletConnect)
+- ✅ Trust Wallet
+- ✅ Coinbase Wallet
+- ✅ Rainbow, dll.
+
+## Kustomisasi Tampilan Modal (Opsional)
+
+```ts
+export const modal = createAppKit({
+  // ...config lainnya
+  themeMode: 'dark', // atau 'light'
+  themeVariables: {
+    '--w3m-accent': '#3B82F6',    // warna accent tombol
+    '--w3m-border-radius-master': '12px',
+  },
+})
+```
+
+---
+
+## Tambahan: Baca address & kirim transaksi
+
+```tsx
+import { useAppKitAccount, useAppKitProvider } from '@reown/appkit/react'
+import { BrowserProvider, parseEther } from 'ethers'
+
+function TransactionExample() {
+  const { address } = useAppKitAccount()
+  const { walletProvider } = useAppKitProvider('eip155')
+
+  const sendTx = async () => {
+    const provider = new BrowserProvider(walletProvider)
+    const signer = await provider.getSigner()
+    const tx = await signer.sendTransaction({
+      to: '0xRECIPIENT_ADDRESS',
+      value: parseEther('0.001'),
+    })
+    console.log('tx hash:', tx.hash)
+  }
+
+  return <button onClick={sendTx}>Send 0.001 ETH</button>
+}
+```
+
+---
+
+## Links
+- Docs: https://docs.reown.com/appkit/overview
+- Dashboard: https://cloud.reown.com
+- Explorer Wallet IDs: https://explorer.walletconnect.com
