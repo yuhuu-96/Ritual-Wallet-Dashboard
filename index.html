@@ -1865,159 +1865,178 @@ async function importNftContract() {
 async function loadNfts() {
   const el = document.getElementById('nft-list');
   if (!el) return;
-  el.innerHTML = '<div class="loading-state" style="grid-column: span 2;">Scanning logs for NFTs...</div>';
+  el.innerHTML = '<div class="loading-state" style="grid-column: span 2;">Scanning NFT logs...</div>';
 
-  const MAX_RETRIES = RPC_POOL.length;
-  const CHUNK_SIZE  = 50000; // 50,000 blocks per chunk (max range is 100,000)
-  const SCAN_DEPTH  = 200000; // scan last 200,000 blocks
+  const addr = userAddress.toLowerCase();
+  const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+  const addrPadded = '0x' + addr.slice(2).padStart(64, '0');
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  // Use raw JSON-RPC POST (bypasses ethers getLogs range limits)
+  async function rawGetLogs(rpcUrl, fromBlock, toBlock, topics, address) {
+    const params = [{ fromBlock: '0x' + fromBlock.toString(16), toBlock: '0x' + toBlock.toString(16), topics }];
+    if (address) params[0].address = address;
+    const res = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_getLogs', params, id: 1 }),
+      signal: AbortSignal.timeout(12000)
+    });
+    const json = await res.json();
+    if (json.error) throw new Error(json.error.message);
+    return json.result || [];
+  }
+
+  let latestBlock;
+  let workingRpc;
+  for (const rpc of RPC_POOL) {
     try {
-      const latestBlock = await readProvider.getBlockNumber();
-      const addr = userAddress.toLowerCase();
-      
-      const topicTransfer = ethers.id("Transfer(address,address,uint256)");
-      const topicTo = ethers.zeroPadValue(addr, 32);
-      const discoveredTokens = [];
-
-      // Fetch logs in smaller chunks to avoid RPC range limits
-      for (let from = latestBlock - SCAN_DEPTH; from < latestBlock; from += CHUNK_SIZE) {
-        const to = Math.min(from + CHUNK_SIZE - 1, latestBlock);
-        try {
-          const logs = await readProvider.getLogs({
-            fromBlock: Math.max(from, 0),
-            toBlock: to,
-            topics: [topicTransfer, null, topicTo]
-          });
-          logs.forEach(log => {
-            if (log.topics.length === 4) {
-              const tokenId = BigInt(log.topics[3]).toString();
-              discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
-            }
-          });
-        } catch { /* skip chunk */ }
-      }
-
-      // Also scan custom imported NFT contracts (larger depth, chunked)
-      const customContracts = getCustomNftContracts();
-      if (customContracts.length > 0) {
-        const CUSTOM_DEPTH = 500000; // scan last 500,000 blocks for custom imported contracts
-        for (let from = latestBlock - CUSTOM_DEPTH; from < latestBlock; from += CHUNK_SIZE) {
-          const to = Math.min(from + CHUNK_SIZE - 1, latestBlock);
-          try {
-            const customLogs = await readProvider.getLogs({
-              fromBlock: Math.max(from, 0),
-              toBlock: to,
-              address: customContracts,
-              topics: [topicTransfer, null, topicTo]
-            });
-            customLogs.forEach(log => {
-              if (log.topics.length === 4) {
-                const tokenId = BigInt(log.topics[3]).toString();
-                discoveredTokens.push({ contractAddress: log.address.toLowerCase(), tokenId });
-              }
-            });
-          } catch { /* skip chunk */ }
-        }
-      }
-
-      // Deduplicate
-      const tokenMap = new Map();
-      discoveredTokens.forEach(t => {
-        tokenMap.set(`${t.contractAddress}_${t.tokenId}`, t);
+      const res = await fetch(rpc, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
+        signal: AbortSignal.timeout(8000)
       });
+      const json = await res.json();
+      latestBlock = parseInt(json.result, 16);
+      workingRpc = rpc;
+      break;
+    } catch { /* try next */ }
+  }
 
-      const uniqueTokens = Array.from(tokenMap.values());
-      if (uniqueTokens.length === 0) {
-        el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No NFTs found. Try adding a contract address.</div>';
-        return;
-      }
+  if (!workingRpc) {
+    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">Cannot connect to Ritual RPC. Check network.</div>';
+    return;
+  }
 
-      // Resolve Metadata
-      const abi = [
-        "function name() view returns (string)",
-        "function symbol() view returns (string)",
-        "function tokenURI(uint256 tokenId) view returns (string)",
-        "function ownerOf(uint256 tokenId) view returns (address)"
-      ];
+  // Scan 5 chunks of 100k blocks (500k total history)
+  const CHUNK = 100000;
+  const DEPTH = 500000;
+  const startBlock = Math.max(0, latestBlock - DEPTH);
+  const discoveredMap = new Map();
 
-      const nftItemsHTML = [];
-      
-      for (const t of uniqueTokens) {
-        try {
-          const contract = new ethers.Contract(t.contractAddress, abi, readProvider);
-          
-          // Verify current ownership
-          const owner = await contract.ownerOf(t.tokenId);
-          if (owner.toLowerCase() !== addr) continue;
+  for (let from = startBlock; from < latestBlock; from += CHUNK) {
+    const to = Math.min(from + CHUNK - 1, latestBlock);
+    try {
+      // NFTs received by this address (3 indexed topics = ERC-721)
+      const logsTo = await rawGetLogs(workingRpc, from, to, [TRANSFER_TOPIC, null, addrPadded]);
+      logsTo.forEach(log => {
+        if (log.topics.length === 4) {
+          const tokenId = BigInt(log.topics[3]).toString();
+          const key = `${log.address.toLowerCase()}_${tokenId}`;
+          discoveredMap.set(key, { contractAddress: log.address.toLowerCase(), tokenId });
+        }
+      });
+      // Also scan tokens sent FROM address (to track and verify current ownership)
+      const logsFrom = await rawGetLogs(workingRpc, from, to, [TRANSFER_TOPIC, addrPadded, null]);
+      logsFrom.forEach(log => {
+        if (log.topics.length === 4) {
+          const tokenId = BigInt(log.topics[3]).toString();
+          const key = `${log.address.toLowerCase()}_${tokenId}`;
+          // Still add — ownerOf check will filter out sent ones
+          discoveredMap.set(key, { contractAddress: log.address.toLowerCase(), tokenId });
+        }
+      });
+    } catch (e) { console.warn(`NFT chunk ${from}-${to} failed:`, e.message); }
+  }
 
-          let collectionName = 'Unknown Collection';
-          let tokenUri = '';
-          try { collectionName = await contract.name(); } catch {}
-          try { tokenUri = await contract.tokenURI(t.tokenId); } catch {}
-
-          let name = `${collectionName} #${t.tokenId}`;
-          let imageUrl = '';
-
-          if (tokenUri) {
-            try {
-              let metadata = {};
-              if (tokenUri.startsWith("data:application/json;base64,")) {
-                const base64 = tokenUri.split(",")[1];
-                metadata = JSON.parse(atob(base64));
-              } else {
-                let fetchUrl = tokenUri;
-                if (tokenUri.startsWith("ipfs://")) {
-                  fetchUrl = tokenUri.replace("ipfs://", "https://ipfs.io/ipfs/");
-                }
-                const res = await fetch(fetchUrl);
-                metadata = await res.json();
-              }
-              name = metadata.name || `${collectionName} #${t.tokenId}`;
-              imageUrl = metadata.image || metadata.image_url || '';
-              if (imageUrl.startsWith("ipfs://")) {
-                imageUrl = imageUrl.replace("ipfs://", "https://ipfs.io/ipfs/");
-              }
-            } catch {
-              name = `${collectionName} #${t.tokenId}`;
-            }
+  // Also scan custom imported NFT contracts
+  const customContracts = getCustomNftContracts();
+  if (customContracts.length > 0) {
+    for (let from = startBlock; from < latestBlock; from += CHUNK) {
+      const to = Math.min(from + CHUNK - 1, latestBlock);
+      try {
+        const customLogs = await rawGetLogs(workingRpc, from, to, [TRANSFER_TOPIC, null, addrPadded], customContracts);
+        customLogs.forEach(log => {
+          if (log.topics.length === 4) {
+            const tokenId = BigInt(log.topics[3]).toString();
+            const key = `${log.address.toLowerCase()}_${tokenId}`;
+            discoveredMap.set(key, { contractAddress: log.address.toLowerCase(), tokenId });
           }
-
-          const imgBlock = imageUrl
-            ? `<img src="${imageUrl}" class="nft-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">`
-            : '';
-
-          nftItemsHTML.push(`<div class="nft-card">
-            <div class="nft-img-wrap">
-              ${imgBlock}
-              <div class="nft-placeholder" style="${imageUrl ? 'display:none;' : ''}">
-                <span style="font-size:24px;margin-bottom:8px;">🎨</span>
-                <span>#${t.tokenId}</span>
-              </div>
-            </div>
-            <div class="nft-meta">
-              <div class="nft-name" title="${name}">${name}</div>
-              <div class="nft-collection" title="${collectionName}">${collectionName}</div>
-            </div>
-          </div>`);
-
-        } catch (err) { /* skip faulty contracts */ }
-      }
-
-      if (nftItemsHTML.length === 0) {
-        el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No owned NFTs found in history.</div>';
-      } else {
-        el.innerHTML = nftItemsHTML.join('');
-      }
-      return; // success — exit retry loop
-
-    } catch (e) {
-      // Rotate to next RPC and retry
-      rotateRpc();
+        });
+      } catch { /* skip */ }
     }
   }
-  // All retries exhausted
-  el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">Failed to scan logs. Try again.</div>';
+
+  const uniqueTokens = Array.from(discoveredMap.values());
+
+  if (uniqueTokens.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No NFTs found in wallet history (last 500k blocks).</div>';
+    return;
+  }
+
+  // Show progress while resolving
+  el.innerHTML = `<div class="loading-state" style="grid-column: span 2;">Found ${uniqueTokens.length} token(s), verifying ownership...</div>`;
+
+  const nftAbi = [
+    'function name() view returns (string)',
+    'function tokenURI(uint256) view returns (string)',
+    'function ownerOf(uint256) view returns (address)'
+  ];
+
+  const nftItemsHTML = [];
+
+  for (const t of uniqueTokens) {
+    try {
+      const contract = new ethers.Contract(t.contractAddress, nftAbi, readProvider);
+
+      // Verify ownership
+      let owner;
+      try { owner = await contract.ownerOf(t.tokenId); } catch { continue; }
+      if (owner.toLowerCase() !== addr) continue;
+
+      let collectionName = 'NFT';
+      try { collectionName = await contract.name(); } catch {}
+
+      let tokenUri = '';
+      try { tokenUri = await contract.tokenURI(t.tokenId); } catch {}
+
+      let name = `${collectionName} #${t.tokenId}`;
+      let imageUrl = '';
+
+      if (tokenUri) {
+        try {
+          let metadata;
+          if (tokenUri.startsWith('data:application/json;base64,')) {
+            metadata = JSON.parse(atob(tokenUri.split(',')[1]));
+          } else {
+            const fetchUrl = tokenUri.startsWith('ipfs://')
+              ? tokenUri.replace('ipfs://', 'https://ipfs.io/ipfs/')
+              : tokenUri;
+            const r = await fetch(fetchUrl, { signal: AbortSignal.timeout(8000) });
+            metadata = await r.json();
+          }
+          if (metadata.name) name = metadata.name;
+          imageUrl = metadata.image || metadata.image_url || '';
+          if (imageUrl.startsWith('ipfs://')) imageUrl = imageUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+        } catch { /* use defaults */ }
+      }
+
+      const shortAddr = t.contractAddress.slice(0,8) + '...' + t.contractAddress.slice(-6);
+      const explorerNftUrl = `${EXPLORER}/token/${t.contractAddress}?a=${t.tokenId}`;
+
+      nftItemsHTML.push(`<div class="nft-card" onclick="window.open('${explorerNftUrl}','_blank')" style="cursor:pointer;" title="View on Explorer">
+        <div class="nft-img-wrap">
+          ${imageUrl
+            ? `<img src="${imageUrl}" class="nft-img" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+            : ''
+          }
+          <div class="nft-placeholder" style="${imageUrl ? 'display:none;' : ''}">
+            <span style="font-size:32px;">🎨</span>
+            <span style="font-size:11px;margin-top:6px;opacity:0.6;">#${t.tokenId}</span>
+          </div>
+        </div>
+        <div class="nft-meta">
+          <div class="nft-name" title="${name}">${name}</div>
+          <div class="nft-collection" title="${t.contractAddress}">${collectionName}</div>
+        </div>
+      </div>`);
+    } catch { /* skip faulty contract */ }
+  }
+
+  if (nftItemsHTML.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="grid-column: span 2; padding: 24px;">No owned NFTs found. You may have transferred them out.</div>';
+  } else {
+    el.innerHTML = nftItemsHTML.join('');
+  }
 }
 
 function toggleTheme() {
@@ -2546,77 +2565,56 @@ async function loadTxHistory() {
     value: ethers.parseEther(tx.value)
   }));
 
-  // 2. Try to fetch the real transactions in the background
-  try {
-    const today = new Date();
-    const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const toDateStr = today.toISOString().slice(0, 10);
-    const fromDateStr = thirtyDaysAgo.toISOString().slice(0, 10);
+  // 2. Try to fetch the real transactions in the background (direct first, then proxies)
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const toDateStr = today.toISOString().slice(0, 10);
+  const fromDateStr = thirtyDaysAgo.toISOString().slice(0, 10);
+  const apiPath = `/api/indexer-proxy/api/v1/addresses/${addr}/transactions?limit=3&offset=0&from_date=${fromDateStr}&to_date=${toDateStr}`;
+  const targetUrl = `https://explorer.ritualfoundation.org${apiPath}`;
 
-    const targetUrl = `https://explorer.ritualfoundation.org/api/indexer-proxy/api/v1/addresses/${addr}/transactions?limit=3&offset=0&from_date=${fromDateStr}&to_date=${toDateStr}`;
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+  const PROXIES = [
+    targetUrl,  // direct (works if explorer allows CORS)
+    `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+    `https://thingproxy.freeboard.io/fetch/${targetUrl}`
+  ];
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
-
-    const response = await fetch(proxyUrl, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (!response.ok) throw new Error("Proxy error");
-
-    const data = await response.json();
-    const txs = data.transactions || [];
-
-    if (txs.length > 0) {
-      // Successfully fetched actual transactions, update the UI!
-      window.walletTransactions = txs.map(tx => ({
-        hash: tx.tx_hash,
-        blockNumber: tx.block_number,
-        blockTimestamp: Math.floor(tx.block_timestamp / 1000),
-        from: tx.from_address,
-        to: tx.to_address,
-        value: BigInt(tx.value || "0x0")
-      }));
-
-      const formattedTxs = txs.map(tx => {
-        const isOut = tx.from_address?.toLowerCase() === addr.toLowerCase();
-        const dir = tx.to_address ? (isOut ? 'out' : 'in') : 'ctr';
-        const icon = dir === 'out' ? '↑' : dir === 'in' ? '↓' : '◈';
-        const valInWei = BigInt(tx.value || "0x0");
-        const val = parseFloat(ethers.formatEther(valInWei)).toFixed(4);
-        
-        let peer = '—';
-        if (isOut) {
-          peer = tx.to_address ? tx.to_address.slice(0, 8) + '...' + tx.to_address.slice(-6) : 'Contract';
-        } else {
-          peer = tx.from_address ? tx.from_address.slice(0, 8) + '...' + tx.from_address.slice(-6) : '—';
-        }
-
-        let typeLabel = isOut ? 'Send RITUAL' : 'Receive RITUAL';
-        if (tx.method_selector && tx.method_selector !== '0x') {
-          typeLabel = `Interact (${tx.method_selector})`;
-        } else if (!tx.to_address) {
-          typeLabel = 'Contract Deploy';
-        }
-
-        const time = tx.block_timestamp ? getTimeAgo(Math.floor(tx.block_timestamp / 1000)) : '';
-
-        return {
-          hash: tx.tx_hash,
-          type: dir,
-          typeLabel: typeLabel,
-          icon: icon,
-          peer: peer,
-          value: val,
-          time: time
-        };
-      });
-
-      renderTxs(formattedTxs, false);
+  for (const proxyUrl of PROXIES) {
+    try {
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(tid);
+      if (!response.ok) continue;
+      const data = await response.json();
+      const txs = data.transactions || [];
+      if (txs.length > 0) {
+        window.walletTransactions = txs.map(tx => ({
+          hash: tx.tx_hash, blockNumber: tx.block_number,
+          blockTimestamp: Math.floor(tx.block_timestamp / 1000),
+          from: tx.from_address, to: tx.to_address, value: BigInt(tx.value || '0x0')
+        }));
+        const formattedTxs = txs.map(tx => {
+          const isOut = tx.from_address?.toLowerCase() === addr.toLowerCase();
+          const dir = tx.to_address ? (isOut ? 'out' : 'in') : 'ctr';
+          const icon = dir === 'out' ? '↑' : dir === 'in' ? '↓' : '◈';
+          const val = parseFloat(ethers.formatEther(BigInt(tx.value || '0x0'))).toFixed(4);
+          const peer = isOut
+            ? (tx.to_address ? tx.to_address.slice(0,8)+'...'+tx.to_address.slice(-6) : 'Contract')
+            : (tx.from_address ? tx.from_address.slice(0,8)+'...'+tx.from_address.slice(-6) : '—');
+          let typeLabel = isOut ? 'Send RITUAL' : 'Receive RITUAL';
+          if (tx.method_selector && tx.method_selector !== '0x') typeLabel = `Interact (${tx.method_selector})`;
+          else if (!tx.to_address) typeLabel = 'Contract Deploy';
+          const time = tx.block_timestamp ? getTimeAgo(Math.floor(tx.block_timestamp / 1000)) : '';
+          return { hash: tx.tx_hash, type: dir, typeLabel, icon, peer, value: val, time };
+        });
+        renderTxs(formattedTxs, false);
+        break; // success, stop trying proxies
+      }
+    } catch (err) {
+      console.warn(`TX fetch failed for proxy ${proxyUrl}:`, err.message);
     }
-  } catch (err) {
-    console.warn("Background fetch of transactions failed, keeping placeholder templates:", err);
-    // Keep the mock transactions showing so the page looks great and click-to-explorer remains functional
   }
 }
 
