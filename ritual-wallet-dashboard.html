@@ -177,6 +177,37 @@ header {
   backdrop-filter: blur(10px);
 }
 
+.checkin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid rgba(200, 185, 138, 0.3);
+  border-radius: 100px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold-1);
+  background: linear-gradient(135deg, rgba(200, 185, 138, 0.15) 0%, rgba(200, 185, 138, 0.05) 100%);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 10px rgba(200, 185, 138, 0.05);
+}
+.checkin-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(200, 185, 138, 0.25) 0%, rgba(200, 185, 138, 0.1) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 0 15px rgba(200, 185, 138, 0.15);
+  border-color: var(--gold-1);
+  color: var(--text-1);
+}
+.checkin-btn:disabled {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--border-1);
+  color: var(--text-3);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .pulse-dot {
   width: 7px;
   height: 7px;
@@ -1215,6 +1246,15 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
         </svg>
       </button>
+      <button class="checkin-btn" id="checkin-btn" style="display:none" onclick="triggerDailyCheckin()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+          <line x1="16" y1="2" x2="16" y2="6"></line>
+          <line x1="8" y1="2" x2="8" y2="6"></line>
+          <line x1="3" y1="10" x2="21" y2="10"></line>
+        </svg>
+        <span id="checkin-text">Check In</span>
+      </button>
       <div class="net-pill">
         <span class="pulse-dot" id="net-dot"></span>
         <span id="net-label">Testnet</span>
@@ -1714,6 +1754,12 @@ let rpcPoolIndex = 0;
 
 let provider, signer, userAddress, balance;
 let readProvider; // Read-only RPC provider
+
+const CHECKIN_CONFIG = {
+  contract: '0x126ce9f1599f2667a4ff3e0eaaccc4c363343fd1',
+  method: '0x329eb839', // pull()
+  value: '100000000000000' // 0.0001 RITUAL in wei
+};
 let activeRpcUrl = RPC_POOL[0];
 let refreshInterval, networkPollInterval, countdownInterval, blockListener;
 let countdownSec = 12;
@@ -2411,6 +2457,76 @@ function updateAddressUI() {
     `<span style="color:var(--gold-2)">${userAddress.slice(0,10)}</span>${userAddress.slice(10,-6)}<span style="color:var(--gold-2)">${userAddress.slice(-6)}</span>`;
   document.getElementById('wallet-full-addr').textContent = userAddress;
   document.getElementById('explorer-link').href = `${EXPLORER}/address/${userAddress}`;
+  updateCheckinUI();
+}
+
+// ── Daily Check-in UI update and Execution ──
+function updateCheckinUI() {
+  const btn = document.getElementById('checkin-btn');
+  const txt = document.getElementById('checkin-text');
+  if (!btn || !txt) return;
+
+  if (!userAddress) {
+    btn.style.display = 'none';
+    return;
+  }
+
+  btn.style.display = 'inline-flex';
+
+  const lastCheckin = localStorage.getItem('ritual_last_checkin_' + userAddress.toLowerCase());
+  if (lastCheckin) {
+    const elapsed = Date.now() - parseInt(lastCheckin, 10);
+    if (elapsed < 24 * 60 * 60 * 1000) {
+      btn.disabled = true;
+      txt.textContent = 'Checked In';
+      btn.style.borderColor = 'rgba(255, 255, 255, 0.05)';
+      return;
+    }
+  }
+
+  btn.disabled = false;
+  txt.textContent = 'Check In';
+  btn.style.borderColor = 'rgba(200, 185, 138, 0.3)';
+}
+
+async function triggerDailyCheckin() {
+  if (!signer || !userAddress) {
+    showToast('Please connect your wallet first', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('checkin-btn');
+  const txt = document.getElementById('checkin-text');
+  
+  btn.disabled = true;
+  txt.textContent = 'Checking In...';
+
+  try {
+    showToast('Please approve the check-in transaction in your wallet...', 'info');
+    
+    const tx = await signer.sendTransaction({
+      to: CHECKIN_CONFIG.contract,
+      data: CHECKIN_CONFIG.method,
+      value: CHECKIN_CONFIG.value
+    });
+
+    showToast('Transaction submitted. Waiting for confirmation...', 'info');
+    await tx.wait();
+
+    localStorage.setItem('ritual_last_checkin_' + userAddress.toLowerCase(), Date.now().toString());
+    showToast('Daily Check-in Success! 0.0001 RITUAL submitted. ✓', 'success');
+    
+    await refreshStats();
+  } catch (err) {
+    console.error('Check-in error:', err);
+    let errMsg = err.message || 'Check-in failed';
+    if (err.code === 'ACTION_REJECTED' || (err.message && err.message.includes('rejected'))) {
+      errMsg = 'User rejected the transaction';
+    }
+    showToast(errMsg, 'error');
+  } finally {
+    updateCheckinUI();
+  }
 }
 
 // ── Refresh stats ──
@@ -2858,6 +2974,7 @@ function disconnectWallet() {
   }
   provider = signer = userAddress = balance = null;
   knownTxHashes.clear();
+  updateCheckinUI();
 
   const connectScreen = document.getElementById('connect-screen');
   const connectLogo = connectScreen.querySelector('.connect-logo');
