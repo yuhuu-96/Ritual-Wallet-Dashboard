@@ -1720,17 +1720,61 @@ let countdownSec = 12;
 let knownTxHashes = new Set();
 let statFailures  = 0; // failure counter untuk refreshStats
 let pollFailures  = 0; // failure counter untuk pollNetwork (terpisah)
+let currentBlockNumber = 0;
 
 // ── Initialize readProvider immediately ──
 readProvider = new ethers.JsonRpcProvider(activeRpcUrl);
 
 // ── Rotate ke RPC berikutnya dalam pool ──
-function rotateRpc() {
-  rpcPoolIndex = (rpcPoolIndex + 1) % RPC_POOL.length;
-  activeRpcUrl = RPC_POOL[rpcPoolIndex];
-  try {
+// ── Rotate ke RPC berikutnya dalam pool (hanya jika online) ──
+async function rotateRpc() {
+  const startIndex = rpcPoolIndex;
+  let nextIndex = (rpcPoolIndex + 1) % RPC_POOL.length;
+  
+  while (nextIndex !== startIndex) {
+    const candidateUrl = RPC_POOL[nextIndex];
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(candidateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'eth_blockNumber', params: [], id: 1 }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        const j = await res.json();
+        if (j.result) {
+          rpcPoolIndex = nextIndex;
+          activeRpcUrl = candidateUrl;
+          readProvider = new ethers.JsonRpcProvider(candidateUrl);
+          
+          const label = document.getElementById('current-rpc-label');
+          if (label) {
+            const displayUrl = candidateUrl.replace('https://', '').replace('http://', '');
+            const shortUrl = displayUrl.length > 25 ? displayUrl.slice(0, 22) + '...' : displayUrl;
+            label.innerHTML = `${shortUrl} <span style="font-size:10px;">⚙️</span>`;
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      // Continue search
+    }
+    nextIndex = (nextIndex + 1) % RPC_POOL.length;
+  }
+  
+  // Fallback ke RPC utama jika no other works
+  if (activeRpcUrl !== RPC_POOL[0]) {
+    rpcPoolIndex = 0;
+    activeRpcUrl = RPC_POOL[0];
     readProvider = new ethers.JsonRpcProvider(activeRpcUrl);
-  } catch { /* ignore */ }
+    const label = document.getElementById('current-rpc-label');
+    if (label) {
+      label.innerHTML = `rpc.ritualfoundation.org <span style="font-size:10px;">⚙️</span>`;
+    }
+  }
 }
 
 // ── Toast ──
@@ -2103,7 +2147,7 @@ async function switchRpc(rpcUrl) {
     const displayUrl = rpcUrl.replace('https://', '').replace('http://', '');
     const shortUrl = displayUrl.length > 25 ? displayUrl.slice(0, 22) + '...' : displayUrl;
     if (label) {
-      label.innerHTML = `dots ${shortUrl} <span style="font-size:10px;">⚙️</span>`;
+      label.innerHTML = `${shortUrl} <span style="font-size:10px;">⚙️</span>`;
     }
 
     showToast('RPC node switched successfully!', 'success');
@@ -2381,6 +2425,7 @@ async function refreshStats() {
   try {
     // Panggil secara sequential agar tidak membebani RPC sekaligus
     const blockNum = await withTimeout(readProvider.getBlockNumber(), 12000);
+    currentBlockNumber = blockNum;
     const feeData  = await withTimeout(readProvider.getFeeData(),     12000);
     const bal      = await withTimeout(readProvider.getBalance(userAddress), 12000);
     const code     = await withTimeout(readProvider.getCode(userAddress),    12000);
@@ -2414,7 +2459,7 @@ async function refreshStats() {
     statFailures++;
     // Rotasi RPC pada kegagalan pertama agar segera pakai fallback
     if (statFailures === 1) {
-      rotateRpc();
+      await rotateRpc();
     }
     // Tampilkan Error hanya setelah 3 kegagalan berturut-turut
     if (statFailures >= 3) {
@@ -2524,6 +2569,7 @@ async function doRefresh() {
 function startBlockListener() {
   if (!readProvider) return;
   readProvider.on('block', async (blockNumber) => {
+    currentBlockNumber = blockNumber;
     try {
       const block = await readProvider.getBlock(blockNumber, true);
       if (!block || !block.transactions) return;
@@ -2570,7 +2616,7 @@ async function pollNetwork() {
     pollFailures++;
     if (pollFailures === 1) {
       // Langsung coba RPC berikutnya dalam pool
-      rotateRpc();
+      await rotateRpc();
       // Quick retry setelah rotasi (tanpa delay)
       try {
         await withTimeout(readProvider.getBlockNumber(), 9000);
@@ -2602,7 +2648,15 @@ async function loadTxHistory() {
   // ── Render helper ──
   function renderRealTxs(txs) {
     if (csvBtn) csvBtn.style.display = 'inline-flex';
-    window.walletTransactions = txs.map(tx => ({
+
+    // Filter transactions to last 1M blocks
+    const filterBlock = currentBlockNumber > 1000000 ? currentBlockNumber - 1000000 : 0;
+    const filteredTxs = txs.filter(tx => {
+      const txBlock = parseInt(tx.block_number || '0');
+      return txBlock >= filterBlock;
+    }).slice(0, 3); // Take at most 3 last transactions
+
+    window.walletTransactions = filteredTxs.map(tx => ({
       hash: tx.tx_hash,
       blockNumber: tx.block_number,
       blockTimestamp: Math.floor(tx.block_timestamp / 1000),
@@ -2611,7 +2665,18 @@ async function loadTxHistory() {
       value: BigInt(tx.value || '0x0')
     }));
 
-    el.innerHTML = txs.map(tx => {
+    if (filteredTxs.length === 0) {
+      el.innerHTML = `<div class="empty-state" style="padding:20px;text-align:center;">
+        <p style="margin-bottom:12px;opacity:0.7;">No transactions found in the last 1M blocks.</p>
+        <a href="${explorerUrl}" target="_blank" rel="noopener"
+           style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:linear-gradient(135deg,#c9a84c,#e8c56a);color:#0d0d15;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;">
+          View on Ritual Explorer &#8599;
+        </a>
+      </div>`;
+      return;
+    }
+
+    el.innerHTML = filteredTxs.map(tx => {
       const isOut = (tx.from_address || '').toLowerCase() === addr;
       const dir   = tx.to_address ? (isOut ? 'out' : 'in') : 'ctr';
       const icon  = dir === 'out' ? '&#8593;' : dir === 'in' ? '&#8595;' : '&#9672;';
@@ -2640,7 +2705,7 @@ async function loadTxHistory() {
   try {
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 12000);
-    const res = await fetch(`/api/transactions?address=${userAddress}&limit=3`, { signal: controller.signal });
+    const res = await fetch(`/api/transactions?address=${userAddress}&limit=10`, { signal: controller.signal });
     clearTimeout(tid);
     if (res.ok) {
       const data = await res.json();
@@ -2651,9 +2716,7 @@ async function loadTxHistory() {
 
   // ── Strategy 2: direct fetch (works if CORS allowed or running locally) ──
   try {
-    const now = new Date();
-    const past = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const apiUrl = `https://explorer.ritualfoundation.org/api/indexer-proxy/api/v1/addresses/${userAddress}/transactions?limit=3&offset=0&from_date=${past.toISOString().slice(0,10)}&to_date=${now.toISOString().slice(0,10)}`;
+    const apiUrl = `https://explorer.ritualfoundation.org/api/indexer-proxy/api/v1/addresses/${userAddress}/transactions?limit=10&offset=0`;
     const controller = new AbortController();
     const tid = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(apiUrl, { signal: controller.signal });
