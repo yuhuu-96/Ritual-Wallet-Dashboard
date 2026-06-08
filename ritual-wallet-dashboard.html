@@ -1328,9 +1328,9 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
         <div class="stat-sub" id="stat-block-sub">latest</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Type</div>
-        <div class="stat-value" id="stat-type">EOA</div>
-        <div class="stat-sub">wallet</div>
+        <div class="stat-label">Transactions</div>
+        <div class="stat-value" id="stat-type">—</div>
+        <div class="stat-sub">all-time</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Network Status</div>
@@ -2588,7 +2588,7 @@ async function refreshStats() {
     currentBlockNumber = blockNum;
     const feeData  = await withTimeout(readProvider.getFeeData(),     12000);
     const bal      = await withTimeout(readProvider.getBalance(userAddress), 12000);
-    const code     = await withTimeout(readProvider.getCode(userAddress),    12000);
+    const txCount  = await withTimeout(readProvider.getTransactionCount(userAddress), 12000);
 
     // ── Sukses ── reset failure counters
     statFailures = 0;
@@ -2598,11 +2598,10 @@ async function refreshStats() {
     const gasGwei = feeData.gasPrice
       ? parseFloat(ethers.formatUnits(feeData.gasPrice, 'gwei')).toFixed(2)
       : '—';
-    const accountType = (code && code !== '0x') ? 'Contract' : 'EOA';
 
     document.getElementById('stat-balance').textContent   = balFmt;
     document.getElementById('stat-block').textContent     = blockNum.toLocaleString();
-    document.getElementById('stat-type').textContent      = accountType;
+    document.getElementById('stat-type').textContent      = txCount.toString();
 
     // ── Update Network Status → Online ──
     setNetworkOnline();
