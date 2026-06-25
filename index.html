@@ -3767,28 +3767,39 @@ async function deploySovereignAgent() {
       // Fallback: do not block deployment if just the check fails
     }
     
-    // 5. Send transaction with fixed gasLimit of 5,000,000 & EIP-1559 options
-    setStatus('Confirm deployment in your wallet...', 'info');
-    
+    // Use simple gasPrice (type-0 tx) — works with MetaMask AND OKX Wallet.
+    // EIP-1559 causes OKX to gray out Confirm when simulation fails.
     let txOptions = {
       value: schedulerFundingWei,
       gasLimit: 5000000n
     };
-    
     try {
       const feeData = await provider.getFeeData();
-      const baseFee = feeData.maxFeePerGas 
-        ? (feeData.maxFeePerGas - feeData.maxPriorityFeePerGas) 
-        : (feeData.gasPrice || 2500000000n);
-      
-      const priorityFee = ethers.parseUnits('1.5', 'gwei');
-      txOptions.maxPriorityFeePerGas = priorityFee;
-      txOptions.maxFeePerGas = baseFee + priorityFee;
-    } catch { /* use network defaults */ }
+      // Use legacy gasPrice — avoids OKX "Biaya jaringan: --" issue
+      txOptions.gasPrice = feeData.gasPrice || ethers.parseUnits('1.5', 'gwei');
+    } catch { txOptions.gasPrice = ethers.parseUnits('1.5', 'gwei'); }
     
+    // Query registry for DKMS executor (Capability 6)
+    let dkmsExecutor = '0x612870C7894b9F0Ea010F4D2452Af1b5dcd367Dd'; // Canonical fallback
+    try {
+      setStatus('Resolving DKMS executor from registry...', 'info');
+      const registryAddress = "0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F";
+      const registry = new ethers.Contract(registryAddress, [
+        'function getServicesByCapability(uint8 capability, bool checkValidity) public view returns (tuple(tuple(address paymentAddress, address teeAddress, uint8 teeType, bytes publicKey, string endpoint, bytes32 certPubKeyHash, uint8 capability) node, bool isValid, bytes32 workloadId)[])'
+      ], signer);
+      const dkmsServices = await registry.getServicesByCapability(6, true);
+      if (dkmsServices && dkmsServices.length > 0) {
+        const node = dkmsServices[0].node || dkmsServices[0][0];
+        dkmsExecutor = node.teeAddress || node[1];
+        console.log("Resolved DKMS executor dynamically:", dkmsExecutor);
+      }
+    } catch (dkmsErr) {
+      console.warn("Failed to query DKMS executor dynamically, using canonical fallback:", dkmsErr);
+    }
+
     const tx = await factory.launchSovereignCompressed(
       saltBytes32,
-      selectedExecutor.teeAddress,
+      dkmsExecutor,
       500n, // dkmsTtl — docs default
       0n,   // dkmsFunding
       params,
