@@ -3733,6 +3733,35 @@ async function deploySovereignAgent() {
       value: 0n
     };
     
+    // 4.5. Check & Deposit RitualWallet balance if needed
+    setStatus('Checking RitualWallet balance...', 'info');
+    try {
+      const ritualWalletAddress = "0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948";
+      const ritualWallet = new ethers.Contract(ritualWalletAddress, [
+        'function balanceOf(address user) public view returns (uint256)',
+        'function deposit(uint256 lockDuration) public payable'
+      ], signer);
+      
+      const rwBalance = await ritualWallet.balanceOf(userAddress);
+      const minRequiredRw = ethers.parseEther('1.0'); // 1 RITUAL minimum
+      
+      if (rwBalance < minRequiredRw) {
+        const depositAmount = minRequiredRw - rwBalance;
+        setStatus(`RitualWallet balance is low (${ethers.formatEther(rwBalance)} RIT). Depositing ${ethers.formatEther(depositAmount)} RITUAL...`, 'info');
+        showToast(`Depositing ${ethers.formatEther(depositAmount)} RITUAL into RitualWallet...`, 'info');
+        
+        const depositTx = await ritualWallet.deposit(100000000n, {
+          value: depositAmount
+        });
+        setStatus('Confirming RitualWallet deposit...', 'info');
+        await depositTx.wait();
+        showToast('RitualWallet deposit confirmed! ✓', 'success');
+      }
+    } catch (rwErr) {
+      console.warn("RitualWallet pre-flight check/deposit failed:", rwErr);
+      // Fallback: do not block deployment if just the check fails
+    }
+    
     // 5. Send transaction with fixed gasLimit of 5,000,000 & EIP-1559 options
     setStatus('Confirm deployment in your wallet...', 'info');
     
