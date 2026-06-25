@@ -1723,11 +1723,11 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
                 <div class="agent-field-row">
                   <div class="form-group">
                     <label class="form-label">Window Num Calls</label>
-                    <input type="number" class="form-input" id="agent-window-calls" value="5" min="1" max="10">
+                    <input type="number" class="form-input" id="agent-window-calls" value="3" min="1" max="9">
                   </div>
                   <div class="form-group">
                     <label class="form-label">Frequency (Blocks)</label>
-                    <input type="number" class="form-input" id="agent-frequency" value="2000" min="500">
+                    <input type="number" class="form-input" id="agent-frequency" value="1000" min="100">
                   </div>
                 </div>
                 <div class="agent-field-row">
@@ -3724,10 +3724,16 @@ async function deploySovereignAgent() {
     
     const schedulerFundingWei = ethers.parseEther(fundingInput);
     
+    // IMPORTANT: frequency × windowNumCalls must be < 10,000 (MAX_LIFESPAN)
+    // schedulerTtl must be < 500 (MAX_TTL)
+    const freqVal = Math.min(parseInt(frequency), 1000); // cap at 1000
+    const wcVal   = Math.min(parseInt(windowCalls), 9);  // cap so freq*wc < 10,000
+    // Final safety: ensure product is strictly under 10,000
+    const safeFreq = (freqVal * wcVal >= 9000) ? Math.floor(8000 / wcVal) : freqVal;
     const schedule = {
       schedulerGas: 3000000n,
-      frequency: BigInt(frequency),
-      schedulerTtl: 500n,
+      frequency: BigInt(safeFreq),
+      schedulerTtl: 400n,  // must be < MAX_TTL (500)
       maxFeePerGas: 1000000000n,
       maxPriorityFeePerGas: 100000000n,
       value: 0n
@@ -3784,13 +3790,13 @@ async function deploySovereignAgent() {
     const tx = await factory.launchSovereignCompressed(
       saltBytes32,
       selectedExecutor.teeAddress,
-      500n, // dkmsTtl
-      0n, // dkmsFunding
+      400n, // dkmsTtl — must be < MAX_TTL (500)
+      0n,   // dkmsFunding
       params,
       schedule,
       BigInt(lockDuration),
       schedulerFundingWei,
-      BigInt(windowCalls),
+      BigInt(wcVal),  // use capped value: freq × wcVal must be < 10,000
       txOptions
     );
     
