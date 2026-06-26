@@ -1630,6 +1630,95 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-4px); }
           }
+          /* --- Tutorial Modal Styles --- */
+          .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+          }
+          .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+          }
+          .modal-content {
+            background: #111111;
+            border: 1px solid rgba(200, 185, 138, 0.3);
+            border-radius: var(--r-md);
+            width: 90%;
+            max-width: 800px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+            overflow: hidden;
+          }
+          .modal-overlay.active .modal-content {
+            transform: scale(1);
+          }
+          .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          }
+          .modal-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--gold-1);
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .modal-close-btn {
+            background: none;
+            border: none;
+            color: var(--text-3);
+            font-size: 20px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s ease;
+          }
+          .modal-close-btn:hover {
+            color: var(--red);
+          }
+          .modal-body {
+            padding: 20px;
+          }
+          .video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: var(--r-sm);
+            background: #000;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+          }
+          .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+          }
         </style>
 
         <div class="card agent-deploy-card" id="agent-deploy-card">
@@ -1642,8 +1731,13 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           <div class="card-body" id="agent-form-body">
             <!-- === GUIDE DEPLOY SOVEREIGN AGENT === -->
             <div style="background: rgba(200, 185, 138, 0.04); border: 1px solid rgba(200, 185, 138, 0.15); border-radius: var(--r-sm); padding: 12px; margin-bottom: 16px;">
-              <div style="font-weight: 600; color: var(--gold-1); font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
-                <span>🤖</span> Guide Deploy Ritual Sovereign Agent
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-weight: 600; color: var(--gold-1); font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                  <span>🤖</span> Guide Deploy Ritual Sovereign Agent
+                </div>
+                <button onclick="openTutorialModal()" style="background: rgba(200, 185, 138, 0.08); border: 1px solid rgba(200, 185, 138, 0.3); border-radius: 4px; color: var(--gold-1); font-size: 11px; padding: 4px 10px; cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 500; transition: background 0.2s ease;">
+                  <span>🎥</span> Watch Tutorial
+                </button>
               </div>
               <div style="display: grid; gap: 8px; font-size: 11px; color: var(--text-2);">
                 <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
@@ -4088,6 +4182,35 @@ async function deploySovereignAgent() {
   }
 }
 
+// ── TUTORIAL MODAL HANDLERS ──
+function openTutorialModal() {
+  const modal = document.getElementById('tutorial-modal');
+  const iframe = document.getElementById('tutorial-iframe');
+  if (modal && iframe) {
+    iframe.src = "https://www.youtube.com/embed/NnLpx7-x-7o?autoplay=1";
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  }
+}
+
+function closeTutorialModal() {
+  const modal = document.getElementById('tutorial-modal');
+  const iframe = document.getElementById('tutorial-iframe');
+  if (modal && iframe) {
+    modal.classList.remove('active');
+    setTimeout(() => {
+      modal.style.display = 'none';
+      iframe.src = "";
+    }, 300);
+  }
+}
+
+function closeTutorialModalOnBackdrop(event) {
+  if (event.target.id === 'tutorial-modal') {
+    closeTutorialModal();
+  }
+}
+
 // ── INITIAL THEME CHECK ──
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
@@ -4125,6 +4248,20 @@ document.addEventListener('DOMContentLoaded', () => {
         <path d="M7 7.5c3.5 -1 6.5 -1 10 0"/>
       </svg>
     </a>
+  </div>
+</div>
+<!-- === VIDEO TUTORIAL MODAL === -->
+<div id="tutorial-modal" class="modal-overlay" onclick="closeTutorialModalOnBackdrop(event)">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">🎥 Sovereign Agent Deploy Tutorial</h3>
+      <button onclick="closeTutorialModal()" class="modal-close-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="video-container">
+        <iframe id="tutorial-iframe" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+      </div>
+    </div>
   </div>
 </div>
 
