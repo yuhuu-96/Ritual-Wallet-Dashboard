@@ -1648,7 +1648,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
               <div style="display: grid; gap: 8px; font-size: 11px; color: var(--text-2);">
                 <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
                   <span style="font-weight: 500; color: var(--text-1);">RITUAL Token</span>
-                  <span>Min 0.3 (fund 0.2) atau lebih</span>
+                  <span>Min 0.3 (fund 0.2) or more</span>
                 </div>
                 <div style="display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 4px;">
                   <span style="font-weight: 500; color: var(--text-1);">Gemini API Key</span>
@@ -1674,7 +1674,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
               <div class="form-group">
                 <label class="form-label">CLI Type (Harness)</label>
                 <select class="form-input" id="agent-cli-type">
-                  <option value="5">Crush (5)</option>
+                  <option value="5">Crush (5) (Recommended)</option>
                   <option value="0">Claude Code (0)</option>
                   <option value="6">ZeroClaw (6)</option>
                 </select>
@@ -3592,28 +3592,89 @@ async function refreshExecutors() {
     el.innerHTML = '';
     window.agentExecutorsList = [];
     
-    services.forEach((service, index) => {
+    // Shuffle the list of services for a random default order
+    const shuffledServices = [...services].sort(() => Math.random() - 0.5);
+    
+    shuffledServices.forEach((service, index) => {
       const node = service.node || service[0];
       const teeAddress = node.teeAddress || node[1];
       const publicKey = node.publicKey || node[3];
+      const endpoint = node.endpoint || node[4];
       
       const shortAddr = teeAddress.slice(0, 6) + '...' + teeAddress.slice(-4);
       const opt = document.createElement('option');
       opt.value = teeAddress;
-      opt.textContent = `Executor ${index + 1} (${shortAddr})`;
+      opt.textContent = `Executor (${shortAddr}) - Checking status...`;
       el.appendChild(opt);
       
       window.agentExecutorsList.push({
         teeAddress: teeAddress,
-        publicKey: publicKey
+        publicKey: publicKey,
+        endpoint: endpoint,
+        optionElement: opt,
+        shortAddr: shortAddr
       });
     });
     
-    handleExecutorChange();
+    // Select the first one initially
+    if (window.agentExecutorsList.length > 0) {
+      el.value = window.agentExecutorsList[0].teeAddress;
+      handleExecutorChange();
+    }
+    
+    // Trigger real-time status checks in parallel
+    window.agentExecutorsList.forEach(exec => {
+      checkExecutorStatus(exec);
+    });
+    
   } catch (err) {
     console.error("Failed to fetch executors:", err);
     el.innerHTML = '<option value="">Failed to fetch executors</option>';
     showToast('Failed to load TEE Executors', 'error');
+  }
+}
+
+async function checkExecutorStatus(exec) {
+  let isOnline = false;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    // Use no-cors mode so we don't get blocked by CORS for alive endpoints
+    await fetch(exec.endpoint, {
+      mode: 'no-cors',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    isOnline = true;
+  } catch (err) {
+    console.warn(`Realtime check for TEE Executor ${exec.teeAddress} failed:`, err.message);
+  }
+  
+  if (isOnline) {
+    exec.optionElement.textContent = `Executor (${exec.shortAddr}) - Active`;
+    exec.optionElement.disabled = false;
+  } else {
+    exec.optionElement.textContent = `Executor (${exec.shortAddr}) - Offline`;
+    exec.optionElement.disabled = true;
+    
+    // If the currently selected option is now disabled, auto-select the first active one
+    const selectEl = document.getElementById('agent-executor');
+    if (selectEl && selectEl.value.toLowerCase() === exec.teeAddress.toLowerCase()) {
+      selectFirstActiveExecutor();
+    }
+  }
+}
+
+function selectFirstActiveExecutor() {
+  const selectEl = document.getElementById('agent-executor');
+  if (!selectEl) return;
+  const options = Array.from(selectEl.options);
+  const firstActive = options.find(opt => !opt.disabled && opt.value !== "");
+  if (firstActive) {
+    selectEl.value = firstActive.value;
+    handleExecutorChange();
+  } else {
+    console.warn("No active TEE executors found online");
   }
 }
 
