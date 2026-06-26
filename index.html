@@ -1954,6 +1954,7 @@ let currentBlockNumber = 0;
 // ── Initialize readProvider immediately ──
 readProvider = new ethers.JsonRpcProvider(activeRpcUrl);
 
+// ── Rotate ke RPC berikutnya dalam pool ──
 // ── Rotate ke RPC berikutnya dalam pool (hanya jika online) ──
 async function rotateRpc() {
   const startIndex = rpcPoolIndex;
@@ -2537,15 +2538,11 @@ async function finishConnect(walletProvider, walletName) {
     await refreshStats();
     await loadTxHistory();
     await loadNfts();
-    try {
-      await initSovereignAgentFlow();
-    } catch (e) {
-      console.error("Failed to initialize Sovereign Agent Flow:", e);
-    }
     startCountdown();
     refreshInterval     = setInterval(doRefresh, 15000);
     networkPollInterval = setInterval(pollNetwork, 10000);
     startBlockListener();
+    await initSovereignAgentFlow();
 
     walletProvider.on?.('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
     walletProvider.on?.('chainChanged', () => location.reload());
@@ -2988,40 +2985,31 @@ async function loadTxHistory() {
   const csvBtn = document.getElementById('export-csv-btn');
   if (csvBtn) csvBtn.style.display = 'none';
 
-  el.innerHTML = '<div class="loading-state">Scanning Ritual chain for transactions...</div>';
+  el.innerHTML = '<div class="loading-state">Loading transactions...</div>';
 
   // ── Render helper ──
   function renderRealTxs(txs) {
     if (csvBtn) csvBtn.style.display = 'inline-flex';
 
-    // Normalize field names (support both indexer-proxy and RPC-scan formats)
-    const normalised = txs.map(tx => ({
-      tx_hash:         tx.tx_hash       || tx.hash        || '',
-      from_address:    tx.from_address  || tx.from        || '',
-      to_address:      tx.to_address    || tx.to          || null,
-      value:           tx.value         || '0x0',
-      block_number:    String(tx.block_number || tx.blockNumber || '0'),
-      block_timestamp: (() => {
-        const ts = tx.block_timestamp ?? tx.timestamp ?? 0;
-        return ts > 1e12 ? ts : ts * 1000;  // ensure ms
-      })(),
-      method_selector: tx.method_selector || tx.input?.slice(0, 10) || '0x',
-    }));
-
-    const filteredTxs = normalised.slice(0, 3); // Show last 3 transactions
+    // Filter transactions to last 1M blocks
+    const filterBlock = currentBlockNumber > 1000000 ? currentBlockNumber - 1000000 : 0;
+    const filteredTxs = txs.filter(tx => {
+      const txBlock = parseInt(tx.block_number || '0');
+      return txBlock >= filterBlock;
+    }).slice(0, 3); // Take at most 3 last transactions
 
     window.walletTransactions = filteredTxs.map(tx => ({
-      hash:           tx.tx_hash,
-      blockNumber:    tx.block_number,
+      hash: tx.tx_hash,
+      blockNumber: tx.block_number,
       blockTimestamp: Math.floor(tx.block_timestamp / 1000),
-      from:           tx.from_address,
-      to:             tx.to_address,
-      value:          (() => { try { return BigInt(tx.value || '0x0'); } catch { return 0n; } })()
+      from: tx.from_address,
+      to: tx.to_address,
+      value: BigInt(tx.value || '0x0')
     }));
 
     if (filteredTxs.length === 0) {
       el.innerHTML = `<div class="empty-state" style="padding:20px;text-align:center;">
-        <p style="margin-bottom:12px;opacity:0.7;">No transactions found for this wallet.</p>
+        <p style="margin-bottom:12px;opacity:0.7;">No transactions found in the last 1M blocks.</p>
         <a href="${explorerUrl}" target="_blank" rel="noopener"
            style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:linear-gradient(135deg,#c9a84c,#e8c56a);color:#0d0d15;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;">
           View on Ritual Explorer &#8599;
@@ -3031,24 +3019,20 @@ async function loadTxHistory() {
     }
 
     el.innerHTML = filteredTxs.map(tx => {
-      const fromL = (tx.from_address || '').toLowerCase();
-      const isOut = fromL === addr;
+      const isOut = (tx.from_address || '').toLowerCase() === addr;
       const dir   = tx.to_address ? (isOut ? 'out' : 'in') : 'ctr';
       const icon  = dir === 'out' ? '&#8593;' : dir === 'in' ? '&#8595;' : '&#9672;';
-      let valBig;
-      try { valBig = BigInt(tx.value || '0x0'); } catch { valBig = 0n; }
-      const val   = parseFloat(ethers.formatEther(valBig)).toFixed(4);
-      const hash  = tx.tx_hash || '';
-      const short = hash ? hash.slice(0,10) + '...' + hash.slice(-6) : '—';
+      const val   = parseFloat(ethers.formatEther(BigInt(tx.value || '0x0'))).toFixed(4);
+      const short = tx.tx_hash.slice(0,10) + '...' + tx.tx_hash.slice(-6);
       const peer  = isOut
-        ? (tx.to_address   ? tx.to_address.slice(0,8)  +'...'+tx.to_address.slice(-6)   : 'Contract')
+        ? (tx.to_address   ? tx.to_address.slice(0,8)+'...'+tx.to_address.slice(-6)   : 'Contract')
         : (tx.from_address ? tx.from_address.slice(0,8)+'...'+tx.from_address.slice(-6) : '&mdash;');
       const time  = tx.block_timestamp ? getTimeAgo(Math.floor(tx.block_timestamp / 1000)) : '';
       let label   = isOut ? 'Send RITUAL' : 'Receive RITUAL';
       if (tx.method_selector && tx.method_selector !== '0x') label = 'Contract Call';
-      if (!tx.to_address) label = 'Contract Deploy';
+      else if (!tx.to_address) label = 'Contract Deploy';
 
-      return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${hash}','_blank')" style="cursor:pointer;" title="View on Explorer">
+      return `<div class="tx-item" onclick="window.open('${EXPLORER}/tx/${tx.tx_hash}','_blank')" style="cursor:pointer;" title="View on Explorer">
         <div class="tx-badge ${dir}">${icon}</div>
         <div class="tx-info">
           <div class="tx-hash">${label}</div>
@@ -3059,44 +3043,36 @@ async function loadTxHistory() {
     }).join('');
   }
 
-  // ── Strategy 1: Vercel serverless proxy (handles CORS & multiple fallbacks) ──
+  // ── Strategy 1: Vercel serverless proxy (same-origin, no CORS issue) ──
   try {
     const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 30000); // 30s for RPC scan
+    const tid = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(`/api/transactions?address=${userAddress}&limit=10`, { signal: controller.signal });
     clearTimeout(tid);
     if (res.ok) {
       const data = await res.json();
-      const txs  = data.transactions || [];
+      const txs = data.transactions || [];
       if (txs.length > 0) { renderRealTxs(txs); return; }
     }
-  } catch (e) { console.warn('Serverless proxy error:', e.message); }
+  } catch (e) { console.warn('Serverless proxy unavailable, falling back...', e.message); }
 
-  // ── Strategy 2: direct explorer REST (multiple endpoints, CORS may fail) ──
-  const directApis = [
-    `https://explorer.ritualfoundation.org/api/v2/addresses/${userAddress}/transactions?limit=10`,
-    `https://explorer.ritualfoundation.org/api?module=account&action=txlist&address=${userAddress}&page=1&offset=10&sort=desc`,
-    `https://explorer.ritualfoundation.org/api/indexer-proxy/api/v1/addresses/${userAddress}/transactions?limit=10&offset=0`,
-  ];
-  for (const apiUrl of directApis) {
-    try {
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 8000);
-      const r = await fetch(apiUrl, { signal: controller.signal });
-      clearTimeout(tid);
-      if (r.ok) {
-        const data = await r.json();
-        const txs  = data.transactions || data.items || data.result || [];
-        if (Array.isArray(txs) && txs.length > 0) { renderRealTxs(txs); return; }
-      }
-    } catch { /* next */ }
-  }
+  // ── Strategy 2: direct fetch (works if CORS allowed or running locally) ──
+  try {
+    const apiUrl = `https://explorer.ritualfoundation.org/api/indexer-proxy/api/v1/addresses/${userAddress}/transactions?limit=10&offset=0`;
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(apiUrl, { signal: controller.signal });
+    clearTimeout(tid);
+    if (res.ok) {
+      const data = await res.json();
+      const txs = data.transactions || [];
+      if (txs.length > 0) { renderRealTxs(txs); return; }
+    }
+  } catch (e) { console.warn('Direct API failed:', e.message); }
 
   // ── Strategy 3: fallback — show explorer link ──
   el.innerHTML = `<div class="empty-state" style="padding:20px;text-align:center;">
-    <span style="font-size:28px;display:block;margin-bottom:10px;">🔍</span>
-    <p style="margin-bottom:6px;opacity:0.7;font-size:13px;">Transaction data unavailable via API.</p>
-    <p style="margin-bottom:14px;opacity:0.5;font-size:11px;">View your full history on the Ritual Explorer.</p>
+    <p style="margin-bottom:12px;opacity:0.7;">Transaction data temporarily unavailable.</p>
     <a href="${explorerUrl}" target="_blank" rel="noopener"
        style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:linear-gradient(135deg,#c9a84c,#e8c56a);color:#0d0d15;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;">
       View on Ritual Explorer &#8599;
@@ -3224,7 +3200,7 @@ function disconnectWallet() {
   }
   provider = signer = userAddress = balance = null;
   knownTxHashes.clear();
-
+  
   // Reset Deploy Sovereign Agent UI
   const displayEl = document.getElementById('agent-predicted-display');
   if (displayEl) displayEl.textContent = 'Connecting wallet to predict...';
@@ -3237,6 +3213,7 @@ function disconnectWallet() {
     statusEl.style.display = 'none';
     statusEl.textContent = '';
   }
+  
   updateCheckinUI();
 
   const connectScreen = document.getElementById('connect-screen');
@@ -3300,7 +3277,7 @@ const TEE_SERVICE_REGISTRY_ABI = [
 
 const SOVEREIGN_FACTORY_ABI = [
   {
-    "name": "predictCompressedHarness",
+    "name": "predictHarness",
     "type": "function",
     "stateMutability": "view",
     "inputs": [
@@ -3309,19 +3286,38 @@ const SOVEREIGN_FACTORY_ABI = [
     ],
     "outputs": [
       { "name": "harness", "type": "address" },
-      { "name": "compressedSalt", "type": "bytes32" },
       { "name": "childSalt", "type": "bytes32" }
     ]
   },
   {
-    "name": "launchSovereignCompressed",
+    "name": "deployHarness",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "userSalt", "type": "bytes32" }
+    ],
+    "outputs": [
+      { "name": "harness", "type": "address" }
+    ]
+  }
+];
+
+const TRACKER_ABI = [
+  {
+    "name": "hasPendingJobForSender",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [{"name": "sender", "type": "address"}],
+    "outputs": [{"name": "", "type": "bool"}]
+  }
+];
+
+const SOVEREIGN_HARNESS_ABI = [
+  {
+    "name": "configureFundAndStart",
     "type": "function",
     "stateMutability": "payable",
     "inputs": [
-      { "name": "userSalt", "type": "bytes32" },
-      { "name": "executor", "type": "address" },
-      { "name": "dkmsTtl", "type": "uint64" },
-      { "name": "dkmsFunding", "type": "uint256" },
       {
         "name": "params",
         "type": "tuple",
@@ -3395,15 +3391,18 @@ const SOVEREIGN_FACTORY_ABI = [
           { "name": "value", "type": "uint256" }
         ]
       },
-      { "name": "schedulerLockDuration", "type": "uint256" },
-      { "name": "schedulerFunding", "type": "uint256" },
-      { "name": "windowNumCalls", "type": "uint32" }
+      {
+        "name": "rolling",
+        "type": "tuple",
+        "components": [
+          { "name": "windowNumCalls", "type": "uint32" },
+          { "name": "rolloverThresholdBps", "type": "uint16" },
+          { "name": "rolloverRetryEveryCalls", "type": "uint16" }
+        ]
+      },
+      { "name": "lockDuration", "type": "uint256" }
     ],
-    "outputs": [
-      { "name": "harness", "type": "address" },
-      { "name": "dkmsPaymentAddress", "type": "address" },
-      { "name": "schedulerCallId", "type": "uint256" }
-    ]
+    "outputs": []
   }
 ];
 
@@ -3440,8 +3439,8 @@ async function predictSovereignHarnessAddress() {
       saltBytes32 = ethers.keccak256(ethers.toUtf8Bytes(saltInput));
     }
     
-    const result = await factory.predictCompressedHarness(userAddress, saltBytes32);
-    const predictedHarnessAddress = result.harness || result[0];
+    const result = await factory.predictHarness(userAddress, saltBytes32);
+    const predictedHarnessAddress = result[0] || result.harness;
     displayEl.textContent = predictedHarnessAddress;
     displayEl.setAttribute('data-harness', predictedHarnessAddress);
   } catch (err) {
@@ -3640,10 +3639,60 @@ async function deploySovereignAgent() {
   }
   
   btn.disabled = true;
-  setStatus('Encrypting secrets client-side...', 'info');
   
   try {
-    // 1. Build secrets JSON
+    // 0. Check pending jobs
+    setStatus('Checking for pending async jobs...', 'info');
+    const trackerAddress = "0xC069FFCa0389f44eCA2C626e55491b0ab045AEF5";
+    const tracker = new ethers.Contract(trackerAddress, TRACKER_ABI, readProvider);
+    const hasPending = await tracker.hasPendingJobForSender(userAddress);
+    if (hasPending) {
+      setStatus('Error: You have a pending async job. Please wait for it to complete or use a different key.', 'error');
+      btn.disabled = false;
+      return;
+    }
+
+    // 1. Predict harness address
+    setStatus('Predicting agent contract harness address...', 'info');
+    const factoryAddress = "0x9dC4C054e53bCc4Ce0A0Ff09E890A7a8e817f304";
+    const factory = new ethers.Contract(factoryAddress, SOVEREIGN_FACTORY_ABI, signer);
+    
+    let saltBytes32;
+    if (saltInput.startsWith('0x') && saltInput.length === 66) {
+      saltBytes32 = saltInput;
+    } else {
+      saltBytes32 = ethers.keccak256(ethers.toUtf8Bytes(saltInput));
+    }
+    
+    const predictResult = await factory.predictHarness(userAddress, saltBytes32);
+    const predictedHarnessAddress = predictResult[0] || predictResult.harness;
+    
+    // 2. Check if code already exists at predicted address
+    setStatus('Checking if harness is already deployed...', 'info');
+    const code = await readProvider.getCode(predictedHarnessAddress);
+    
+    if (code === '0x' || code === '0x00') {
+      setStatus('Deploying agent contract harness (Step 1 of 2)...', 'info');
+      showToast('Deploying Agent Harness...', 'info');
+      
+      const deployTx = await factory.deployHarness(saltBytes32, {
+        gasLimit: 3000000n
+      });
+      
+      setStatus('Waiting for harness deployment transaction...', 'info');
+      const deployReceipt = await deployTx.wait();
+      if (deployReceipt.status !== 1) {
+        setStatus('Error: deployHarness transaction reverted.', 'error');
+        btn.disabled = false;
+        return;
+      }
+      showToast('Harness deployed! ✓', 'success');
+    } else {
+      setStatus('Harness already deployed. Proceeding to configuration...', 'info');
+    }
+    
+    // 3. Encrypt secrets
+    setStatus('Encrypting secrets client-side...', 'info');
     const secretsObj = { HF_TOKEN: hfToken };
     if (providerVal !== 'ritual') {
       secretsObj.LLM_PROVIDER = providerVal;
@@ -3659,7 +3708,6 @@ async function deploySovereignAgent() {
     const encoder = new TextEncoder();
     const secretsBytes = encoder.encode(secretsStr);
     
-    // 2. Run ECIES Encryption
     let receiverPublicKey = selectedExecutor.publicKey;
     if (receiverPublicKey.startsWith('0x')) {
       receiverPublicKey = receiverPublicKey.slice(2);
@@ -3667,21 +3715,6 @@ async function deploySovereignAgent() {
     
     const encryptedBytes = window.eciesEncrypt(receiverPublicKey, secretsBytes);
     const encryptedSecretsHex = ethers.hexlify(encryptedBytes);
-    
-    // 3. Predict child address
-    setStatus('Predicting agent contract harness address...', 'info');
-    const factoryAddress = "0x9dC4C054e53bCc4Ce0A0Ff09E890A7a8e817f304";
-    const factory = new ethers.Contract(factoryAddress, SOVEREIGN_FACTORY_ABI, signer);
-    
-    let saltBytes32;
-    if (saltInput.startsWith('0x') && saltInput.length === 66) {
-      saltBytes32 = saltInput;
-    } else {
-      saltBytes32 = ethers.keccak256(ethers.toUtf8Bytes(saltInput));
-    }
-    
-    const predictResult = await factory.predictCompressedHarness(userAddress, saltBytes32);
-    const predictedHarnessAddress = predictResult.harness || predictResult[0];
     
     // 4. Construct params
     const params = {
@@ -3723,22 +3756,25 @@ async function deploySovereignAgent() {
     };
     
     const schedulerFundingWei = ethers.parseEther(fundingInput);
-    
-    // Docs: frequency × windowNumCalls must be <= 10,000 (MAX_LIFESPAN)
-    // Docs default: frequency=2000, windowNumCalls=5 → 2000*5=10,000 (exactly at limit, VALID)
-    // schedulerTtl must be <= 500 (MAX_TTL), docs recommend 500
     const freqVal = parseInt(frequency);
     const wcVal   = parseInt(windowCalls);
+    
     const schedule = {
-      schedulerGas: 3000000n,
+      schedulerGas: 500000n,
       frequency: BigInt(freqVal),
-      schedulerTtl: 500n,  // docs recommend 500 (MAX_TTL)
-      maxFeePerGas: 1000000000n,
-      maxPriorityFeePerGas: 100000000n,
+      schedulerTtl: 500n,
+      maxFeePerGas: ethers.parseUnits('20', 'gwei'),
+      maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei'),
       value: 0n
     };
     
-    // 4.5. Check & Deposit RitualWallet balance if needed
+    const rolling = {
+      windowNumCalls: BigInt(wcVal),
+      rolloverThresholdBps: 5000n, // 50%
+      rolloverRetryEveryCalls: 1n
+    };
+    
+    // Check & Deposit RitualWallet balance if needed
     setStatus('Checking RitualWallet balance...', 'info');
     try {
       const ritualWalletAddress = "0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948";
@@ -3748,7 +3784,7 @@ async function deploySovereignAgent() {
       ], signer);
       
       const rwBalance = await ritualWallet.balanceOf(userAddress);
-      const minRequiredRw = ethers.parseEther('1.0'); // 1 RITUAL minimum
+      const minRequiredRw = ethers.parseEther('1.0');
       
       if (rwBalance < minRequiredRw) {
         const depositAmount = minRequiredRw - rwBalance;
@@ -3764,56 +3800,35 @@ async function deploySovereignAgent() {
       }
     } catch (rwErr) {
       console.warn("RitualWallet pre-flight check/deposit failed:", rwErr);
-      // Fallback: do not block deployment if just the check fails
     }
     
-    // Use simple gasPrice (type-0 tx) — works with MetaMask AND OKX Wallet.
-    // EIP-1559 causes OKX to gray out Confirm when simulation fails.
-    let txOptions = {
-      value: schedulerFundingWei,
-      gasLimit: 5000000n
-    };
-    try {
-      const feeData = await provider.getFeeData();
-      // Use legacy gasPrice — avoids OKX "Biaya jaringan: --" issue
-      txOptions.gasPrice = feeData.gasPrice || ethers.parseUnits('1.5', 'gwei');
-    } catch { txOptions.gasPrice = ethers.parseUnits('1.5', 'gwei'); }
+    // 5. configureFundAndStart directly on the harness
+    setStatus('Configuring and funding agent (Step 2 of 2)...', 'info');
+    showToast('Configuring Agent Harness...', 'info');
     
-    // Query registry for DKMS executor (Capability 6)
-    let dkmsExecutor = '0x612870C7894b9F0Ea010F4D2452Af1b5dcd367Dd'; // Canonical fallback
-    try {
-      setStatus('Resolving DKMS executor from registry...', 'info');
-      const registryAddress = "0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F";
-      const registry = new ethers.Contract(registryAddress, [
-        'function getServicesByCapability(uint8 capability, bool checkValidity) public view returns (tuple(tuple(address paymentAddress, address teeAddress, uint8 teeType, bytes publicKey, string endpoint, bytes32 certPubKeyHash, uint8 capability) node, bool isValid, bytes32 workloadId)[])'
-      ], signer);
-      const dkmsServices = await registry.getServicesByCapability(6, true);
-      if (dkmsServices && dkmsServices.length > 0) {
-        const node = dkmsServices[0].node || dkmsServices[0][0];
-        dkmsExecutor = node.teeAddress || node[1];
-        console.log("Resolved DKMS executor dynamically:", dkmsExecutor);
-      }
-    } catch (dkmsErr) {
-      console.warn("Failed to query DKMS executor dynamically, using canonical fallback:", dkmsErr);
-    }
-
-    const tx = await factory.launchSovereignCompressed(
-      saltBytes32,
-      dkmsExecutor,
-      500n, // dkmsTtl — docs default
-      0n,   // dkmsFunding
+    const harness = new ethers.Contract(predictedHarnessAddress, SOVEREIGN_HARNESS_ABI, signer);
+    
+    const configTx = await harness.configureFundAndStart(
       params,
       schedule,
+      rolling,
       BigInt(lockDuration),
-      schedulerFundingWei,
-      BigInt(wcVal),
-      txOptions
+      {
+        value: schedulerFundingWei,
+        gasLimit: 5000000n
+      }
     );
     
-    setStatus(`Transaction submitted! Hash: ${tx.hash.slice(0, 10)}... waiting for confirmation.`, 'info');
+    setStatus(`Transaction submitted! Hash: ${configTx.hash.slice(0, 10)}... waiting for confirmation.`, 'info');
     
-    const receipt = await tx.wait();
-    setStatus(`Sovereign Agent Deployed! Harness address: ${predictedHarnessAddress}`, 'success');
+    const configReceipt = await configTx.wait();
+    if (configReceipt.status !== 1) {
+      setStatus('Error: configureFundAndStart transaction reverted.', 'error');
+      btn.disabled = false;
+      return;
+    }
+    
+    setStatus(`Sovereign Agent Deployed & Configured! Harness address: ${predictedHarnessAddress}`, 'success');
     showToast('Agent Deployed Successfully! 🎉', 'success');
     
     if (typeof refreshStats === 'function') refreshStats();

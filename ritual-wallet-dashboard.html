@@ -1574,6 +1574,188 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           </div>
         </div>
 
+        <!-- === SOVEREIGN AGENT DEPLOYMENT (NEW) === -->
+        <style>
+          .agent-deploy-card {
+            margin-top: 0px;
+          }
+          .agent-field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+          }
+          .agent-predicted-addr {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--gold-1);
+            word-break: break-all;
+            background: rgba(200, 185, 138, 0.05);
+            padding: 6px 10px;
+            border-radius: var(--r-sm);
+            border: 1px dashed rgba(200, 185, 138, 0.2);
+            margin-top: 6px;
+          }
+          .agent-status-msg {
+            margin-top: 10px;
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: var(--r-sm);
+            display: none;
+          }
+          .agent-status-msg.info {
+            display: block;
+            background: var(--surface-2);
+            color: var(--text-2);
+            border-left: 3px solid var(--gold-1);
+          }
+          .agent-status-msg.success {
+            display: block;
+            background: var(--green-bg);
+            color: var(--green);
+            border-left: 3px solid var(--green);
+          }
+          .agent-status-msg.error {
+            display: block;
+            background: var(--red-bg);
+            color: var(--red);
+            border-left: 3px solid var(--red);
+          }
+          .agent-executor-details {
+            font-size: 11px;
+            color: var(--text-3);
+            margin-top: 4px;
+            font-family: var(--font-mono);
+          }
+        </style>
+
+        <div class="card agent-deploy-card" id="agent-deploy-card">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="card-title">Deploy Sovereign Agent</span>
+            <span style="background: rgba(200, 185, 138, 0.15); color: var(--gold-1); font-size: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(200, 185, 138, 0.3); font-weight: bold;">
+              Genesis 1000 Eligible
+            </span>
+          </div>
+          <div class="card-body">
+            <!-- Row 1: Agent Name & CLI Type -->
+            <div class="agent-field-row">
+              <div class="form-group">
+                <label class="form-label">Agent ID / Salt</label>
+                <input type="text" class="form-input" id="agent-salt" value="sovereign-agent-1" placeholder="e.g. agent-1" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="form-group">
+                <label class="form-label">CLI Type (Harness)</label>
+                <select class="form-input" id="agent-cli-type">
+                  <option value="5">Crush (5)</option>
+                  <option value="0">Claude Code (0)</option>
+                  <option value="6">ZeroClaw (6)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Predicted Address Display -->
+            <div class="form-group">
+              <label class="form-label">Predicted Harness Address</label>
+              <div id="agent-predicted-display" class="agent-predicted-addr">Connecting wallet to predict...</div>
+            </div>
+
+            <!-- Executor Discovery -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label class="form-label" style="margin-bottom: 0;">TEE Executor</label>
+                <span onclick="refreshExecutors()" style="font-size: 11px; color: var(--gold-1); cursor: pointer; user-select: none;">
+                  🔄 Refresh
+                </span>
+              </div>
+              <select class="form-input" id="agent-executor" onchange="handleExecutorChange()">
+                <option value="">Loading TEE executors...</option>
+              </select>
+              <div id="agent-executor-key" class="agent-executor-details">—</div>
+            </div>
+
+            <!-- HuggingFace Dataset details -->
+            <div class="agent-field-row">
+              <div class="form-group">
+                <label class="form-label">HuggingFace Repo ID</label>
+                <input type="text" class="form-input" id="agent-hf-repo" placeholder="user/repo" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="form-group">
+                <label class="form-label">HF Token (with Write access)</label>
+                <input type="password" class="form-input" id="agent-hf-token" placeholder="hf_..." autocomplete="off">
+              </div>
+            </div>
+
+            <!-- Provider & Recommended Model -->
+            <div class="agent-field-row">
+              <div class="form-group">
+                <label class="form-label">LLM Provider</label>
+                <select class="form-input" id="agent-provider" onchange="handleAgentProviderChange()">
+                  <option value="gemini">Gemini</option>
+                  <option value="ritual">Ritual Gateway (No Key)</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="openrouter">OpenRouter</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Model ID</label>
+                <input type="text" class="form-input" id="agent-model" value="gemini-2.5-flash" placeholder="e.g. gemini-2.5-flash" autocomplete="off" spellcheck="false">
+              </div>
+            </div>
+
+            <!-- API Key (Hidden for Ritual) -->
+            <div class="form-group" id="agent-api-key-group">
+              <label class="form-label" id="agent-api-key-label">Gemini API Key</label>
+              <input type="password" class="form-input" id="agent-api-key" placeholder="Enter provider API key" autocomplete="off">
+            </div>
+
+            <!-- System Prompt -->
+            <div class="form-group">
+              <label class="form-label">Initial System Prompt</label>
+              <textarea class="form-input" id="agent-prompt" rows="2" style="resize: vertical; min-height: 48px;" placeholder="e.g. You are a helpful Sovereign Agent.">Say hello world</textarea>
+            </div>
+
+            <!-- Advanced Settings (Expandable) -->
+            <div style="margin-bottom: 12px;">
+              <span onclick="toggleAgentAdvanced()" style="font-size: 11px; color: var(--gold-1); cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px;">
+                <span id="agent-advanced-caret">▶</span> Advanced Settings (Scheduler & Window)
+              </span>
+              <div id="agent-advanced-panel" style="display: none; margin-top: 8px; padding: 10px; border: 1px solid var(--border-1); border-radius: var(--r-sm); background: rgba(255,255,255,0.01);">
+                <div class="agent-field-row">
+                  <div class="form-group">
+                    <label class="form-label">Window Num Calls</label>
+                    <input type="number" class="form-input" id="agent-window-calls" value="5" min="1" max="5">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Frequency (Blocks)</label>
+                    <input type="number" class="form-input" id="agent-frequency" value="2000" min="500">
+                  </div>
+                </div>
+                <div class="agent-field-row">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Scheduler Funding (RITUAL)</label>
+                    <input type="number" class="form-input" id="agent-funding" value="5" step="any" min="1">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Lock Duration (Blocks)</label>
+                    <input type="number" class="form-input" id="agent-lock-duration" value="100000000">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Status Message -->
+            <div id="agent-status" class="agent-status-msg"></div>
+
+            <!-- Deploy Button -->
+            <button class="btn btn-primary btn-full" id="deploy-agent-btn" onclick="deploySovereignAgent()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+              Deploy Sovereign Agent
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -2360,6 +2542,7 @@ async function finishConnect(walletProvider, walletName) {
     refreshInterval     = setInterval(doRefresh, 15000);
     networkPollInterval = setInterval(pollNetwork, 10000);
     startBlockListener();
+    await initSovereignAgentFlow();
 
     walletProvider.on?.('accountsChanged', (a) => { if (!a.length) disconnectWallet(); else location.reload(); });
     walletProvider.on?.('chainChanged', () => location.reload());
@@ -3017,6 +3200,20 @@ function disconnectWallet() {
   }
   provider = signer = userAddress = balance = null;
   knownTxHashes.clear();
+  
+  // Reset Deploy Sovereign Agent UI
+  const displayEl = document.getElementById('agent-predicted-display');
+  if (displayEl) displayEl.textContent = 'Connecting wallet to predict...';
+  const execEl = document.getElementById('agent-executor');
+  if (execEl) execEl.innerHTML = '<option value="">Loading TEE executors...</option>';
+  const execKeyEl = document.getElementById('agent-executor-key');
+  if (execKeyEl) execKeyEl.textContent = '—';
+  const statusEl = document.getElementById('agent-status');
+  if (statusEl) {
+    statusEl.style.display = 'none';
+    statusEl.textContent = '';
+  }
+  
   updateCheckinUI();
 
   const connectScreen = document.getElementById('connect-screen');
@@ -3042,11 +3239,622 @@ function disconnectWallet() {
   showToast('Disconnected', 'info');
 }
 
+// =====================================================
+// === SOVEREIGN AGENT DEPLOYMENT CODE (NEW) ===
+// =====================================================
+
+const TEE_SERVICE_REGISTRY_ABI = [
+  {
+    "name": "getServicesByCapability",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [{"name": "capability", "type": "uint8"}, {"name": "checkValidity", "type": "bool"}],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "components": [
+          {
+            "name": "node",
+            "type": "tuple",
+            "components": [
+              {"name": "paymentAddress", "type": "address"},
+              {"name": "teeAddress", "type": "address"},
+              {"name": "teeType", "type": "uint8"},
+              {"name": "publicKey", "type": "bytes"},
+              {"name": "endpoint", "type": "string"},
+              {"name": "certPubKeyHash", "type": "bytes32"},
+              {"name": "capability", "type": "uint8"}
+            ]
+          },
+          {"name": "isValid", "type": "bool"},
+          {"name": "workloadId", "type": "bytes32"}
+        ]
+      }
+    ]
+  }
+];
+
+const SOVEREIGN_FACTORY_ABI = [
+  {
+    "name": "predictHarness",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "owner", "type": "address" },
+      { "name": "userSalt", "type": "bytes32" }
+    ],
+    "outputs": [
+      { "name": "harness", "type": "address" },
+      { "name": "childSalt", "type": "bytes32" }
+    ]
+  },
+  {
+    "name": "deployHarness",
+    "type": "function",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "userSalt", "type": "bytes32" }
+    ],
+    "outputs": [
+      { "name": "harness", "type": "address" }
+    ]
+  }
+];
+
+const TRACKER_ABI = [
+  {
+    "name": "hasPendingJobForSender",
+    "type": "function",
+    "stateMutability": "view",
+    "inputs": [{"name": "sender", "type": "address"}],
+    "outputs": [{"name": "", "type": "bool"}]
+  }
+];
+
+const SOVEREIGN_HARNESS_ABI = [
+  {
+    "name": "configureFundAndStart",
+    "type": "function",
+    "stateMutability": "payable",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "components": [
+          { "name": "executor", "type": "address" },
+          { "name": "ttl", "type": "uint256" },
+          { "name": "userPublicKey", "type": "bytes" },
+          { "name": "pollIntervalBlocks", "type": "uint64" },
+          { "name": "maxPollBlock", "type": "uint64" },
+          { "name": "taskIdMarker", "type": "string" },
+          { "name": "deliveryTarget", "type": "address" },
+          { "name": "deliverySelector", "type": "bytes4" },
+          { "name": "deliveryGasLimit", "type": "uint256" },
+          { "name": "deliveryMaxFeePerGas", "type": "uint256" },
+          { "name": "deliveryMaxPriorityFeePerGas", "type": "uint256" },
+          { "name": "cliType", "type": "uint16" },
+          { "name": "prompt", "type": "string" },
+          { "name": "encryptedSecrets", "type": "bytes" },
+          {
+            "name": "convoHistory",
+            "type": "tuple",
+            "components": [
+              { "name": "platform", "type": "string" },
+              { "name": "path", "type": "string" },
+              { "name": "keyRef", "type": "string" }
+            ]
+          },
+          {
+            "name": "output",
+            "type": "tuple",
+            "components": [
+              { "name": "platform", "type": "string" },
+              { "name": "path", "type": "string" },
+              { "name": "keyRef", "type": "string" }
+            ]
+          },
+          {
+            "name": "skills",
+            "type": "tuple[]",
+            "components": [
+              { "name": "platform", "type": "string" },
+              { "name": "path", "type": "string" },
+              { "name": "keyRef", "type": "string" }
+            ]
+          },
+          {
+            "name": "systemPrompt",
+            "type": "tuple",
+            "components": [
+              { "name": "platform", "type": "string" },
+              { "name": "path", "type": "string" },
+              { "name": "keyRef", "type": "string" }
+            ]
+          },
+          { "name": "model", "type": "string" },
+          { "name": "tools", "type": "string[]" },
+          { "name": "maxTurns", "type": "uint16" },
+          { "name": "maxTokens", "type": "uint32" },
+          { "name": "rpcUrls", "type": "string" }
+        ]
+      },
+      {
+        "name": "schedule",
+        "type": "tuple",
+        "components": [
+          { "name": "schedulerGas", "type": "uint32" },
+          { "name": "frequency", "type": "uint32" },
+          { "name": "schedulerTtl", "type": "uint32" },
+          { "name": "maxFeePerGas", "type": "uint256" },
+          { "name": "maxPriorityFeePerGas", "type": "uint256" },
+          { "name": "value", "type": "uint256" }
+        ]
+      },
+      {
+        "name": "rolling",
+        "type": "tuple",
+        "components": [
+          { "name": "windowNumCalls", "type": "uint32" },
+          { "name": "rolloverThresholdBps", "type": "uint16" },
+          { "name": "rolloverRetryEveryCalls", "type": "uint16" }
+        ]
+      },
+      { "name": "lockDuration", "type": "uint256" }
+    ],
+    "outputs": []
+  }
+];
+
+let predictDebounceTimeout = null;
+
+function handleSaltInput() {
+  if (predictDebounceTimeout) clearTimeout(predictDebounceTimeout);
+  predictDebounceTimeout = setTimeout(predictSovereignHarnessAddress, 300);
+}
+
+async function predictSovereignHarnessAddress() {
+  const displayEl = document.getElementById('agent-predicted-display');
+  if (!displayEl) return;
+  
+  if (!userAddress) {
+    displayEl.textContent = 'Connect wallet to predict harness address';
+    return;
+  }
+  
+  const saltInput = document.getElementById('agent-salt').value.trim();
+  if (!saltInput) {
+    displayEl.textContent = 'Enter Agent ID / Salt';
+    return;
+  }
+  
+  try {
+    const factoryAddress = "0x9dC4C054e53bCc4Ce0A0Ff09E890A7a8e817f304";
+    const factory = new ethers.Contract(factoryAddress, SOVEREIGN_FACTORY_ABI, readProvider);
+    
+    let saltBytes32;
+    if (saltInput.startsWith('0x') && saltInput.length === 66) {
+      saltBytes32 = saltInput;
+    } else {
+      saltBytes32 = ethers.keccak256(ethers.toUtf8Bytes(saltInput));
+    }
+    
+    const result = await factory.predictHarness(userAddress, saltBytes32);
+    const predictedHarnessAddress = result[0] || result.harness;
+    displayEl.textContent = predictedHarnessAddress;
+    displayEl.setAttribute('data-harness', predictedHarnessAddress);
+  } catch (err) {
+    console.error("Harness prediction failed:", err);
+    displayEl.textContent = 'Prediction failed';
+  }
+}
+
+async function refreshExecutors() {
+  const el = document.getElementById('agent-executor');
+  const keyEl = document.getElementById('agent-executor-key');
+  if (!el) return;
+  
+  el.innerHTML = '<option value="">Querying registry...</option>';
+  keyEl.textContent = '—';
+  
+  try {
+    const registryAddress = "0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F";
+    const registry = new ethers.Contract(registryAddress, TEE_SERVICE_REGISTRY_ABI, readProvider);
+    
+    const services = await registry.getServicesByCapability(0, true);
+    
+    if (!services || services.length === 0) {
+      el.innerHTML = '<option value="">No executors found</option>';
+      return;
+    }
+    
+    el.innerHTML = '';
+    window.agentExecutorsList = [];
+    
+    services.forEach((service, index) => {
+      const node = service.node || service[0];
+      const teeAddress = node.teeAddress || node[1];
+      const publicKey = node.publicKey || node[3];
+      
+      const shortAddr = teeAddress.slice(0, 6) + '...' + teeAddress.slice(-4);
+      const opt = document.createElement('option');
+      opt.value = teeAddress;
+      opt.textContent = `Executor ${index + 1} (${shortAddr})`;
+      el.appendChild(opt);
+      
+      window.agentExecutorsList.push({
+        teeAddress: teeAddress,
+        publicKey: publicKey
+      });
+    });
+    
+    handleExecutorChange();
+  } catch (err) {
+    console.error("Failed to fetch executors:", err);
+    el.innerHTML = '<option value="">Failed to fetch executors</option>';
+    showToast('Failed to load TEE Executors', 'error');
+  }
+}
+
+function handleExecutorChange() {
+  const val = document.getElementById('agent-executor').value;
+  const keyEl = document.getElementById('agent-executor-key');
+  if (!val || !window.agentExecutorsList) {
+    keyEl.textContent = '—';
+    return;
+  }
+  const exec = window.agentExecutorsList.find(e => e.teeAddress.toLowerCase() === val.toLowerCase());
+  if (exec) {
+    const pk = exec.publicKey;
+    const shortPk = pk.slice(0, 10) + '...' + pk.slice(-8);
+    keyEl.textContent = `Public Key: ${shortPk}`;
+  } else {
+    keyEl.textContent = '—';
+  }
+}
+
+function handleAgentProviderChange() {
+  const providerVal = document.getElementById('agent-provider').value;
+  const keyGroup = document.getElementById('agent-api-key-group');
+  const keyLabel = document.getElementById('agent-api-key-label');
+  const modelInput = document.getElementById('agent-model');
+  
+  if (!keyGroup || !keyLabel || !modelInput) return;
+  
+  if (providerVal === 'ritual') {
+    keyGroup.style.display = 'none';
+    modelInput.value = 'zai-org/GLM-4.7-FP8';
+  } else {
+    keyGroup.style.display = 'block';
+    if (providerVal === 'gemini') {
+      keyLabel.textContent = 'Gemini API Key';
+      modelInput.value = 'gemini-2.5-flash';
+    } else if (providerVal === 'anthropic') {
+      keyLabel.textContent = 'Anthropic API Key';
+      modelInput.value = 'claude-3-5-sonnet-20241022';
+    } else if (providerVal === 'openai') {
+      keyLabel.textContent = 'OpenAI API Key';
+      modelInput.value = 'gpt-4o-mini';
+    } else if (providerVal === 'openrouter') {
+      keyLabel.textContent = 'OpenRouter API Key';
+      modelInput.value = 'meta-llama/llama-3.1-8b-instruct:free';
+    }
+  }
+}
+
+function toggleAgentAdvanced() {
+  const panel = document.getElementById('agent-advanced-panel');
+  const caret = document.getElementById('agent-advanced-caret');
+  if (!panel || !caret) return;
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+    caret.textContent = '▼';
+  } else {
+    panel.style.display = 'none';
+    caret.textContent = '▶';
+  }
+}
+
+async function initSovereignAgentFlow() {
+  const saltEl = document.getElementById('agent-salt');
+  if (saltEl) {
+    saltEl.addEventListener('input', handleSaltInput);
+  }
+  handleAgentProviderChange();
+  await refreshExecutors();
+  await predictSovereignHarnessAddress();
+}
+
+async function deploySovereignAgent() {
+  const statusEl = document.getElementById('agent-status');
+  const btn = document.getElementById('deploy-agent-btn');
+  
+  function setStatus(msg, type) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.className = 'agent-status-msg ' + type;
+    statusEl.style.display = 'block';
+  }
+  
+  if (!userAddress || !signer) {
+    setStatus('Error: Please connect your wallet first.', 'error');
+    return;
+  }
+  
+  const saltInput = document.getElementById('agent-salt').value.trim();
+  const cliType = document.getElementById('agent-cli-type').value;
+  const hfRepoId = document.getElementById('agent-hf-repo').value.trim();
+  const hfToken = document.getElementById('agent-hf-token').value.trim();
+  const providerVal = document.getElementById('agent-provider').value;
+  const apiKey = document.getElementById('agent-api-key').value.trim();
+  const model = document.getElementById('agent-model').value.trim();
+  const prompt = document.getElementById('agent-prompt').value;
+  const windowCalls = document.getElementById('agent-window-calls').value;
+  const frequency = document.getElementById('agent-frequency').value;
+  const fundingInput = document.getElementById('agent-funding').value;
+  const lockDuration = document.getElementById('agent-lock-duration').value;
+  
+  // Validations
+  if (!saltInput) {
+    setStatus('Error: Agent ID / Salt is required.', 'error');
+    return;
+  }
+  
+  const repoPattern = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
+  if (!repoPattern.test(hfRepoId)) {
+    setStatus('Error: HuggingFace Repo ID must be in "user/repo" format.', 'error');
+    return;
+  }
+  
+  if (!hfToken) {
+    setStatus('Error: HuggingFace Write Token is required.', 'error');
+    return;
+  }
+  
+  if (providerVal !== 'ritual' && !apiKey) {
+    setStatus(`Error: API Key is required for provider ${providerVal}.`, 'error');
+    return;
+  }
+  
+  if (!model) {
+    setStatus('Error: Model ID is required.', 'error');
+    return;
+  }
+  
+  const selectedExecAddr = document.getElementById('agent-executor').value;
+  if (!selectedExecAddr || !window.agentExecutorsList) {
+    setStatus('Error: Please select a valid TEE Executor.', 'error');
+    return;
+  }
+  
+  const selectedExecutor = window.agentExecutorsList.find(e => e.teeAddress.toLowerCase() === selectedExecAddr.toLowerCase());
+  if (!selectedExecutor) {
+    setStatus('Error: Selected TEE Executor not found.', 'error');
+    return;
+  }
+  
+  if (typeof window.eciesEncrypt !== 'function') {
+    setStatus('Error: Encryption module is still loading. Please try again in a few seconds.', 'error');
+    return;
+  }
+  
+  btn.disabled = true;
+  
+  try {
+    // 0. Check pending jobs
+    setStatus('Checking for pending async jobs...', 'info');
+    const trackerAddress = "0xC069FFCa0389f44eCA2C626e55491b0ab045AEF5";
+    const tracker = new ethers.Contract(trackerAddress, TRACKER_ABI, readProvider);
+    const hasPending = await tracker.hasPendingJobForSender(userAddress);
+    if (hasPending) {
+      setStatus('Error: You have a pending async job. Please wait for it to complete or use a different key.', 'error');
+      btn.disabled = false;
+      return;
+    }
+
+    // 1. Predict harness address
+    setStatus('Predicting agent contract harness address...', 'info');
+    const factoryAddress = "0x9dC4C054e53bCc4Ce0A0Ff09E890A7a8e817f304";
+    const factory = new ethers.Contract(factoryAddress, SOVEREIGN_FACTORY_ABI, signer);
+    
+    let saltBytes32;
+    if (saltInput.startsWith('0x') && saltInput.length === 66) {
+      saltBytes32 = saltInput;
+    } else {
+      saltBytes32 = ethers.keccak256(ethers.toUtf8Bytes(saltInput));
+    }
+    
+    const predictResult = await factory.predictHarness(userAddress, saltBytes32);
+    const predictedHarnessAddress = predictResult[0] || predictResult.harness;
+    
+    // 2. Check if code already exists at predicted address
+    setStatus('Checking if harness is already deployed...', 'info');
+    const code = await readProvider.getCode(predictedHarnessAddress);
+    
+    if (code === '0x' || code === '0x00') {
+      setStatus('Deploying agent contract harness (Step 1 of 2)...', 'info');
+      showToast('Deploying Agent Harness...', 'info');
+      
+      const deployTx = await factory.deployHarness(saltBytes32, {
+        gasLimit: 3000000n
+      });
+      
+      setStatus('Waiting for harness deployment transaction...', 'info');
+      const deployReceipt = await deployTx.wait();
+      if (deployReceipt.status !== 1) {
+        setStatus('Error: deployHarness transaction reverted.', 'error');
+        btn.disabled = false;
+        return;
+      }
+      showToast('Harness deployed! ✓', 'success');
+    } else {
+      setStatus('Harness already deployed. Proceeding to configuration...', 'info');
+    }
+    
+    // 3. Encrypt secrets
+    setStatus('Encrypting secrets client-side...', 'info');
+    const secretsObj = { HF_TOKEN: hfToken };
+    if (providerVal !== 'ritual') {
+      secretsObj.LLM_PROVIDER = providerVal;
+      if (providerVal === 'gemini') secretsObj.GEMINI_API_KEY = apiKey;
+      else if (providerVal === 'anthropic') secretsObj.ANTHROPIC_API_KEY = apiKey;
+      else if (providerVal === 'openai') secretsObj.OPENAI_API_KEY = apiKey;
+      else if (providerVal === 'openrouter') secretsObj.OPENROUTER_API_KEY = apiKey;
+    } else {
+      secretsObj.LLM_PROVIDER = 'ritual';
+    }
+    
+    const secretsStr = JSON.stringify(secretsObj);
+    const encoder = new TextEncoder();
+    const secretsBytes = encoder.encode(secretsStr);
+    
+    let receiverPublicKey = selectedExecutor.publicKey;
+    if (receiverPublicKey.startsWith('0x')) {
+      receiverPublicKey = receiverPublicKey.slice(2);
+    }
+    
+    const encryptedBytes = window.eciesEncrypt(receiverPublicKey, secretsBytes);
+    const encryptedSecretsHex = ethers.hexlify(encryptedBytes);
+    
+    // 4. Construct params
+    const params = {
+      executor: selectedExecutor.teeAddress,
+      ttl: 500n,
+      userPublicKey: "0x",
+      pollIntervalBlocks: 5n,
+      maxPollBlock: 6000n,
+      taskIdMarker: "SOVEREIGN_AGENT_TASK",
+      deliveryTarget: predictedHarnessAddress,
+      deliverySelector: "0x8ca12055",
+      deliveryGasLimit: 3000000n,
+      deliveryMaxFeePerGas: 1000000000n,
+      deliveryMaxPriorityFeePerGas: 100000000n,
+      cliType: parseInt(cliType),
+      prompt: prompt,
+      encryptedSecrets: encryptedSecretsHex,
+      convoHistory: {
+        platform: "hf",
+        path: `${hfRepoId}/sessions/session-001.jsonl`,
+        keyRef: "HF_TOKEN"
+      },
+      output: {
+        platform: "hf",
+        path: `${hfRepoId}/artifacts/`,
+        keyRef: "HF_TOKEN"
+      },
+      skills: [],
+      systemPrompt: {
+        platform: "hf",
+        path: `${hfRepoId}/prompts/default-system.md`,
+        keyRef: ""
+      },
+      model: model,
+      tools: [],
+      maxTurns: 50n,
+      maxTokens: 8192n,
+      rpcUrls: ""
+    };
+    
+    const schedulerFundingWei = ethers.parseEther(fundingInput);
+    const freqVal = parseInt(frequency);
+    const wcVal   = parseInt(windowCalls);
+    
+    const schedule = {
+      schedulerGas: 500000n,
+      frequency: BigInt(freqVal),
+      schedulerTtl: 500n,
+      maxFeePerGas: ethers.parseUnits('20', 'gwei'),
+      maxPriorityFeePerGas: ethers.parseUnits('1', 'gwei'),
+      value: 0n
+    };
+    
+    const rolling = {
+      windowNumCalls: BigInt(wcVal),
+      rolloverThresholdBps: 5000n, // 50%
+      rolloverRetryEveryCalls: 1n
+    };
+    
+    // Check & Deposit RitualWallet balance if needed
+    setStatus('Checking RitualWallet balance...', 'info');
+    try {
+      const ritualWalletAddress = "0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948";
+      const ritualWallet = new ethers.Contract(ritualWalletAddress, [
+        'function balanceOf(address user) public view returns (uint256)',
+        'function deposit(uint256 lockDuration) public payable'
+      ], signer);
+      
+      const rwBalance = await ritualWallet.balanceOf(userAddress);
+      const minRequiredRw = ethers.parseEther('1.0');
+      
+      if (rwBalance < minRequiredRw) {
+        const depositAmount = minRequiredRw - rwBalance;
+        setStatus(`RitualWallet balance is low (${ethers.formatEther(rwBalance)} RIT). Depositing ${ethers.formatEther(depositAmount)} RITUAL...`, 'info');
+        showToast(`Depositing ${ethers.formatEther(depositAmount)} RITUAL into RitualWallet...`, 'info');
+        
+        const depositTx = await ritualWallet.deposit(100000000n, {
+          value: depositAmount
+        });
+        setStatus('Confirming RitualWallet deposit...', 'info');
+        await depositTx.wait();
+        showToast('RitualWallet deposit confirmed! ✓', 'success');
+      }
+    } catch (rwErr) {
+      console.warn("RitualWallet pre-flight check/deposit failed:", rwErr);
+    }
+    
+    // 5. configureFundAndStart directly on the harness
+    setStatus('Configuring and funding agent (Step 2 of 2)...', 'info');
+    showToast('Configuring Agent Harness...', 'info');
+    
+    const harness = new ethers.Contract(predictedHarnessAddress, SOVEREIGN_HARNESS_ABI, signer);
+    
+    const configTx = await harness.configureFundAndStart(
+      params,
+      schedule,
+      rolling,
+      BigInt(lockDuration),
+      {
+        value: schedulerFundingWei,
+        gasLimit: 5000000n
+      }
+    );
+    
+    setStatus(`Transaction submitted! Hash: ${configTx.hash.slice(0, 10)}... waiting for confirmation.`, 'info');
+    
+    const configReceipt = await configTx.wait();
+    if (configReceipt.status !== 1) {
+      setStatus('Error: configureFundAndStart transaction reverted.', 'error');
+      btn.disabled = false;
+      return;
+    }
+    
+    setStatus(`Sovereign Agent Deployed & Configured! Harness address: ${predictedHarnessAddress}`, 'success');
+    showToast('Agent Deployed Successfully! 🎉', 'success');
+    
+    if (typeof refreshStats === 'function') refreshStats();
+  } catch (err) {
+    console.error("Agent Deployment Error:", err);
+    setStatus(`Deployment Failed: ${err.reason || err.message || err}`, 'error');
+    showToast('Deployment failed', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ── INITIAL THEME CHECK ──
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
 });
 
+</script>
+
+<!-- === SOVEREIGN AGENT DEPLOYMENT MODULE (NEW) === -->
+<script type="module">
+  import { encrypt, ECIES_CONFIG } from 'https://esm.sh/eciesjs@0.5.0';
+  window.eciesEncrypt = (pubKeyHex, dataBytes) => {
+    ECIES_CONFIG.symmetricNonceLength = 12;
+    return encrypt(pubKeyHex, dataBytes);
+  };
 </script>
 
 <!-- Footer Credit -->
