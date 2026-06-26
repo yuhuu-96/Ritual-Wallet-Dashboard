@@ -1752,25 +1752,65 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
                 <div class="agent-field-row">
                   <div class="form-group">
                     <label class="form-label">Window Num Calls</label>
-                    <input type="number" class="form-input" id="agent-window-calls" value="5" min="1" max="5">
+                    <input type="number" class="form-input" id="agent-window-calls" value="5" min="1" max="10">
+                    <div style="font-size: 10px; color: var(--text-3); margin-top: 4px;">Recommended: 5</div>
                   </div>
                   <div class="form-group">
                     <label class="form-label">Frequency (Blocks)</label>
-                    <input type="number" class="form-input" id="agent-frequency" value="2000" min="500">
+                    <input type="number" class="form-input" id="agent-frequency" value="2000" min="1000">
+                    <div style="font-size: 10px; color: var(--text-3); margin-top: 4px;">Recommended: 2000 blocks</div>
                   </div>
                 </div>
                 <div class="agent-field-row">
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Scheduler Funding (RITUAL)</label>
-                    <input type="number" class="form-input" id="agent-funding" value="0.2" step="any" min="0.1">
+                    <input type="number" class="form-input" id="agent-funding" value="0.2" step="any" min="0.2">
+                    <div style="font-size: 10px; color: var(--text-3); margin-top: 4px;">Recommended: 0.3 - 0.5</div>
+                    <div id="agent-funding-warning" style="font-size: 10px; color: var(--red); margin-top: 4px; display: none;">⚠️ Minimum 0.2 RITUAL required</div>
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Lock Duration (Blocks)</label>
-                    <input type="number" class="form-input" id="agent-lock-duration" value="100000000">
+                    <input type="number" class="form-input" id="agent-lock-duration" value="100000000" min="1000000">
+                    <div style="font-size: 10px; color: var(--text-3); margin-top: 4px;">Recommended: 100000000</div>
                   </div>
                 </div>
               </div>
             </div>
+
+<script>
+// === ADVANCED SETTINGS VALIDATION (NEW) ===
+function validateAgentFunding() {
+  const fundingEl = document.getElementById('agent-funding');
+  const warningEl = document.getElementById('agent-funding-warning');
+  const deployBtn = document.getElementById('deploy-agent-btn');
+  if (!fundingEl || !deployBtn) return;
+  
+  const val = parseFloat(fundingEl.value);
+  if (isNaN(val) || val < 0.2) {
+    if (warningEl) warningEl.style.display = 'block';
+    deployBtn.disabled = true;
+    deployBtn.title = "Increase funding to minimum 0.2 RITUAL to deploy";
+    deployBtn.style.opacity = '0.5';
+    deployBtn.style.cursor = 'not-allowed';
+  } else {
+    if (warningEl) warningEl.style.display = 'none';
+    deployBtn.disabled = false;
+    deployBtn.title = "";
+    deployBtn.style.opacity = '1';
+    deployBtn.style.cursor = 'pointer';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const fundingEl = document.getElementById('agent-funding');
+  if (fundingEl) {
+    fundingEl.addEventListener('input', validateAgentFunding);
+    fundingEl.addEventListener('change', validateAgentFunding);
+    validateAgentFunding();
+  }
+});
+// === END ADVANCED SETTINGS VALIDATION ===
+</script>
 
             <!-- Status Message -->
             <div id="agent-status" class="agent-status-msg"></div>
