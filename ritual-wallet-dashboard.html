@@ -1278,10 +1278,10 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
       <h1 class="connect-title">Ritual Command Center</h1>
     </div>
     <p class="connect-desc" style="font-size: 15px; font-weight: 500; color: var(--gold-1); margin-top: 6px; margin-bottom: 8px;">
-      Your gateway to the Ritual Testnet
+      Deploy. Monitor. Dominate the Ritual Testnet.
     </p>
     <p class="connect-desc" style="max-width: 480px; margin-left: auto; margin-right: auto; line-height: 1.5;">
-      Connect your wallet for live balance tracking, real-time on-chain metrics, and seamless asset transfers
+      Connect your wallet to track balances, deploy sovereign agents, and monitor your on-chain presence all in one place.
     </p>
     <button class="btn btn-primary" id="connect-btn" onclick="connectWallet()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="M16 22l5-5-5-5"/><path d="M21 17H9"/></svg>
@@ -1925,6 +1925,96 @@ document.addEventListener('DOMContentLoaded', () => {
 
       </div>
     </div>
+
+    <!-- === AGENT STATUS SECTION (NEW) === -->
+    <div class="card" id="agent-status-section" style="margin-top: 28px;">
+      <div class="card-header">
+        <span class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Agent Status
+        </span>
+        <button
+          id="agent-status-mine-btn"
+          onclick="fillMyAgentAddress()"
+          class="btn btn-ghost"
+          style="font-size:11px;padding:5px 12px;display:none;"
+          title="Auto-fill from last deploy"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          Check My Agent
+        </button>
+      </div>
+      <div class="card-body">
+        <!-- Address input row -->
+        <div class="form-group" style="margin-bottom:12px;">
+          <label class="form-label">Agent Contract Address</label>
+          <div style="display:flex;gap:8px;">
+            <input
+              type="text"
+              class="form-input"
+              id="agent-status-address"
+              placeholder="0x… paste your deployed harness address"
+              autocomplete="off"
+              spellcheck="false"
+              style="font-family:var(--font-mono);font-size:12px;"
+            >
+            <button
+              class="btn btn-primary"
+              onclick="checkAgentStatus()"
+              id="agent-status-check-btn"
+              style="white-space:nowrap;padding:11px 20px;"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Check Status
+            </button>
+          </div>
+        </div>
+
+        <!-- Results panel (hidden until checked) -->
+        <div id="agent-status-results" style="display:none;">
+          <!-- Status row -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px 16px;background:rgba(255,255,255,0.02);border:1px solid var(--border-1);border-radius:var(--r-sm);">
+            <div id="agent-status-dot" style="width:10px;height:10px;border-radius:50%;background:var(--text-3);flex-shrink:0;"></div>
+            <div id="agent-status-label" style="font-size:13px;font-weight:600;color:var(--text-1);">—</div>
+            <a id="agent-explorer-link" href="#" target="_blank" rel="noopener noreferrer" style="margin-left:auto;font-size:11px;font-family:var(--font-mono);color:var(--gold-1);text-decoration:none;opacity:0.8;" title="View on Ritual Explorer">
+              View on Explorer
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          </div>
+
+          <!-- Detail table -->
+          <div style="border:1px solid var(--border-1);border-radius:var(--r-sm);overflow:hidden;background:rgba(0,0,0,0.12);">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <tbody style="color:var(--text-1);">
+                <tr style="border-bottom:1px solid var(--border-1);">
+                  <td style="padding:10px 14px;color:var(--text-3);width:46%;font-family:var(--font-mono);font-size:11px;">RitualWallet Balance</td>
+                  <td style="padding:10px 14px;font-family:var(--font-mono);font-size:11px;" id="as-wallet-balance">—</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border-1);">
+                  <td style="padding:10px 14px;color:var(--text-3);font-family:var(--font-mono);font-size:11px;">Scheduler Status</td>
+                  <td style="padding:10px 14px;font-size:11px;" id="as-scheduler-status">—</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border-1);">
+                  <td style="padding:10px 14px;color:var(--text-3);font-family:var(--font-mono);font-size:11px;">Next Execution (Block)</td>
+                  <td style="padding:10px 14px;font-family:var(--font-mono);font-size:11px;" id="as-next-exec">—</td>
+                </tr>
+                <tr>
+                  <td style="padding:10px 14px;color:var(--text-3);font-family:var(--font-mono);font-size:11px;">Lock Duration Remaining</td>
+                  <td style="padding:10px 14px;font-family:var(--font-mono);font-size:11px;" id="as-lock-remaining">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Checked-at timestamp -->
+          <div style="margin-top:10px;font-size:10px;color:var(--text-3);font-family:var(--font-mono);text-align:right;" id="as-checked-at"></div>
+        </div>
+
+        <!-- Error / loading state -->
+        <div id="agent-status-msg" style="font-size:12px;color:var(--text-3);font-family:var(--font-mono);margin-top:8px;min-height:18px;"></div>
+      </div>
+    </div>
+    <!-- === END AGENT STATUS SECTION === -->
 
     <!-- Explorer Link -->
     <a href="#" class="explorer-btn" id="explorer-link" target="_blank" rel="noopener noreferrer">
@@ -4113,6 +4203,11 @@ async function deploySovereignAgent() {
       document.getElementById('success-model').textContent = `${providerName} ${model}`;
       
       document.getElementById('success-harness-address').value = predictedHarnessAddress;
+      // === AGENT STATUS: store last deployed address (NEW) ===
+      window._lastDeployedAgentAddress = predictedHarnessAddress;
+      const statusMineBtn = document.getElementById('agent-status-mine-btn');
+      if (statusMineBtn) statusMineBtn.style.display = 'inline-flex';
+      // === END AGENT STATUS: store last deployed address ===
       
       // Toggle card body displays
       document.getElementById('agent-form-body').style.display = 'none';
@@ -4133,6 +4228,181 @@ async function deploySovereignAgent() {
     btn.disabled = false;
   }
 }
+
+// === AGENT STATUS CHECK FUNCTIONS (NEW) ===
+
+// Global session variable to hold last deployed agent address
+window._lastDeployedAgentAddress = null;
+
+function fillMyAgentAddress() {
+  if (!window._lastDeployedAgentAddress) return;
+  const inp = document.getElementById('agent-status-address');
+  if (inp) inp.value = window._lastDeployedAgentAddress;
+}
+
+async function checkAgentStatus() {
+  const addrInput = document.getElementById('agent-status-address');
+  const msgEl     = document.getElementById('agent-status-msg');
+  const resultsEl = document.getElementById('agent-status-results');
+  const checkBtn  = document.getElementById('agent-status-check-btn');
+
+  if (!addrInput || !msgEl || !resultsEl) return;
+
+  const addr = (addrInput.value || '').trim();
+  if (!addr || !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    msgEl.textContent = 'Please enter a valid 0x… contract address.';
+    msgEl.style.color = 'var(--red)';
+    return;
+  }
+
+  // Reset UI
+  msgEl.textContent = 'Fetching on-chain data...';
+  msgEl.style.color = 'var(--text-3)';
+  resultsEl.style.display = 'none';
+  if (checkBtn) { checkBtn.disabled = true; checkBtn.style.opacity = '0.6'; }
+
+  try {
+    // Use existing readProvider (already connected to Ritual testnet)
+    const rpc = (typeof readProvider !== 'undefined' && readProvider)
+      ? readProvider
+      : new ethers.JsonRpcProvider(RPC_POOL[0]);
+
+    // --- 1. Check if contract exists (has bytecode) ---
+    const code = await rpc.getCode(addr);
+    const exists = code && code !== '0x';
+
+    const dotEl   = document.getElementById('agent-status-dot');
+    const labelEl = document.getElementById('agent-status-label');
+    const explorerLink = document.getElementById('agent-explorer-link');
+
+    if (explorerLink) {
+      explorerLink.href = `https://explorer.ritualfoundation.org/agents/${addr}?type=sovereign`;
+    }
+
+    if (!exists) {
+      if (dotEl)   { dotEl.style.background = 'var(--red)'; dotEl.style.boxShadow = '0 0 6px var(--red)'; }
+      if (labelEl) { labelEl.textContent = 'Not Found — no contract at this address'; labelEl.style.color = 'var(--red)'; }
+      document.getElementById('as-wallet-balance').textContent = '—';
+      document.getElementById('as-scheduler-status').textContent = '—';
+      document.getElementById('as-next-exec').textContent = '—';
+      document.getElementById('as-lock-remaining').textContent = '—';
+      resultsEl.style.display = 'block';
+      msgEl.textContent = '';
+      return;
+    }
+
+    // --- 2. Read on-chain state via eth_call ---
+    // Minimal ABI selectors for SovereignHarness / Scheduler
+    // We use low-level eth_call to avoid needing a full ABI
+    async function ethCall(to, data) {
+      const rpcUrl = (typeof activeRpcUrl !== 'undefined') ? activeRpcUrl : RPC_POOL[0];
+      const res = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', method: 'eth_call',
+          params: [{ to, data }, 'latest'], id: 99
+        })
+      });
+      const j = await res.json();
+      return j.result || '0x';
+    }
+
+    // RitualWallet balanceOf(address) → 0x70a08231
+    const RITUAL_WALLET = '0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948';
+    const balSelector   = '0x70a08231' + addr.slice(2).padStart(64, '0');
+    let walletBalance = '—';
+    try {
+      const balHex = await ethCall(RITUAL_WALLET, balSelector);
+      if (balHex && balHex.length > 2) {
+        const balWei = BigInt(balHex);
+        walletBalance = parseFloat(ethers.formatEther(balWei)).toFixed(4) + ' RITUAL';
+      }
+    } catch(e) { walletBalance = 'Error reading'; }
+
+    // isActive() → 0x22f3e2d4 (common pattern on harness contracts)
+    let schedulerActive = null;
+    try {
+      const activeHex = await ethCall(addr, '0x22f3e2d4');
+      if (activeHex && activeHex.length > 2) {
+        schedulerActive = BigInt(activeHex) !== 0n;
+      }
+    } catch(e) { /* not available */ }
+
+    // nextExecutionBlock() → 0x7c60eae6
+    let nextExecBlock = '—';
+    try {
+      const nexHex = await ethCall(addr, '0x7c60eae6');
+      if (nexHex && nexHex.length > 2) {
+        const nb = Number(BigInt(nexHex));
+        if (nb > 0) {
+          const cur = (typeof currentBlockNumber !== 'undefined') ? currentBlockNumber : 0;
+          const diff = cur > 0 ? ` (~${nb - cur > 0 ? '+' : ''}${nb - cur} blocks away)` : '';
+          nextExecBlock = nb.toLocaleString() + diff;
+        }
+      }
+    } catch(e) { /* not available */ }
+
+    // lockEndBlock() → 0x0fb5a6b4  OR  unlockBlock() → 0x4cf088d9
+    let lockRemaining = '—';
+    try {
+      let lockHex = await ethCall(addr, '0x0fb5a6b4');
+      if (!lockHex || lockHex === '0x') lockHex = await ethCall(addr, '0x4cf088d9');
+      if (lockHex && lockHex.length > 2) {
+        const lb = Number(BigInt(lockHex));
+        if (lb > 0) {
+          const cur = (typeof currentBlockNumber !== 'undefined') ? currentBlockNumber : 0;
+          const blocksLeft = lb - cur;
+          if (blocksLeft > 0) {
+            const daysLeft = ((blocksLeft * 3.5) / 86400).toFixed(1);
+            lockRemaining = `${blocksLeft.toLocaleString()} blocks (~${daysLeft} days)`;
+          } else {
+            lockRemaining = 'Unlocked';
+          }
+        }
+      }
+    } catch(e) { /* not available */ }
+
+    // --- 3. Update UI ---
+    if (dotEl) {
+      dotEl.style.background = 'var(--green)';
+      dotEl.style.boxShadow  = '0 0 8px var(--green)';
+    }
+    if (labelEl) {
+      labelEl.textContent = 'Agent Active — contract found on Ritual Testnet';
+      labelEl.style.color = 'var(--green)';
+    }
+
+    document.getElementById('as-wallet-balance').textContent = walletBalance;
+
+    const schedEl = document.getElementById('as-scheduler-status');
+    if (schedEl) {
+      if (schedulerActive === true) {
+        schedEl.innerHTML = '<span style="color:var(--green);font-weight:600;">Active</span>';
+      } else if (schedulerActive === false) {
+        schedEl.innerHTML = '<span style="color:var(--amber);font-weight:600;">Inactive</span>';
+      } else {
+        schedEl.textContent = 'N/A (read not supported)';
+      }
+    }
+    document.getElementById('as-next-exec').textContent = nextExecBlock;
+    document.getElementById('as-lock-remaining').textContent = lockRemaining;
+
+    const checkedEl = document.getElementById('as-checked-at');
+    if (checkedEl) checkedEl.textContent = 'Checked at: ' + new Date().toLocaleTimeString();
+
+    resultsEl.style.display = 'block';
+    msgEl.textContent = '';
+
+  } catch (err) {
+    console.error('Agent status check error:', err);
+    msgEl.textContent = 'Error: ' + (err.message || 'RPC call failed');
+    msgEl.style.color = 'var(--red)';
+  } finally {
+    if (checkBtn) { checkBtn.disabled = false; checkBtn.style.opacity = '1'; }
+  }
+}
+// === END AGENT STATUS CHECK FUNCTIONS ===
 
 // ── INITIAL THEME CHECK ──
 document.addEventListener('DOMContentLoaded', () => {
