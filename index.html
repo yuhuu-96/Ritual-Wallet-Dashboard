@@ -1825,13 +1825,14 @@ document.addEventListener('DOMContentLoaded', () => {
           </div> <!-- End of agent-form-body -->
 
           <!-- === SOVEREIGN AGENT DEPLOYMENT SUCCESS RECEIPT (NEW) === -->
+          <!-- === SOVEREIGN AGENT DEPLOYMENT SUCCESS RECEIPT TRANSLATION (NEW) === -->
           <div class="card-body" id="agent-success-body" style="display: none; padding: 20px;">
             <div style="text-align: center; margin-bottom: 20px;">
               <span style="font-size: 40px; display: inline-block; animation: bounce 1s infinite;">🎉</span>
               <h3 style="font-size: 16px; color: var(--gold-1); margin-top: 10px; margin-bottom: 6px; font-weight: 700; line-height: 1.4;">
-                CONFIRMED! Agent Kamu Live di Blockchain!
+                CONFIRMED! Your Agent is Live on Blockchain!
               </h3>
-              <p style="font-size: 11px; color: var(--text-3); margin: 0;">Ini transaksi deploy agent kamu yang sukses:</p>
+              <p style="font-size: 11px; color: var(--text-3); margin: 0;">Here's your successful agent deployment transaction:</p>
             </div>
 
             <!-- Receipt Table -->
@@ -1862,11 +1863,11 @@ document.addEventListener('DOMContentLoaded', () => {
                   </tr>
                   <tr style="border-bottom: 1px solid var(--border-1);">
                     <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ RitualWallet</td>
-                    <td style="padding: 10px 12px; color: var(--green); font-weight: 500;">Deposit sukses</td>
+                    <td style="padding: 10px 12px; color: var(--green); font-weight: 500;">Deposit successful</td>
                   </tr>
                   <tr>
                     <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ Scheduler</td>
-                    <td style="padding: 10px 12px; color: var(--green); font-weight: 500;">CallScheduled aktif</td>
+                    <td style="padding: 10px 12px; color: var(--green); font-weight: 500;">CallScheduled active</td>
                   </tr>
                 </tbody>
               </table>
@@ -1874,31 +1875,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <!-- Quick Bullet Highlights -->
             <div style="background: rgba(200, 185, 138, 0.02); border: 1px solid rgba(200, 185, 138, 0.15); border-radius: var(--r-sm); padding: 12px; margin-bottom: 20px;">
-              <div style="font-size: 12px; font-weight: 600; color: var(--gold-1); margin-bottom: 8px;">Agent kamu sudah:</div>
+              <div style="font-size: 12px; font-weight: 600; color: var(--gold-1); margin-bottom: 8px;">Your agent is now:</div>
               <ul style="list-style: none; padding-left: 0; margin: 0; font-size: 11px; display: grid; gap: 8px; color: var(--text-2);">
                 <li style="display: flex; align-items: center; gap: 6px;">
-                  <span>🤖</span> <span><strong>Berjalan otomatis</strong> setiap ~<span id="success-interval">—</span> menit</span>
+                  <span>🤖</span> <span><strong>Runs automatically</strong> every ~<span id="success-interval">—</span> minutes</span>
                 </li>
                 <li style="display: flex; align-items: center; gap: 6px;">
-                  <span>🔒</span> <span><strong>Terkunci</strong> ~<span id="success-lock">—</span> hari</span>
+                  <span>🔒</span> <span><strong>Locked</strong> for ~<span id="success-lock">—</span> days</span>
                 </li>
                 <li style="display: flex; align-items: center; gap: 6px;">
-                  <span>💰</span> <span><strong>Funded</strong> <span id="success-fund-amt">—</span> RITUAL (~<span id="success-fund-days">—</span> hari)</span>
+                  <span>💰</span> <span><strong>Funded</strong> <span id="success-fund-amt">—</span> RITUAL (~<span id="success-fund-days">—</span> days)</span>
                 </li>
                 <li style="display: flex; align-items: center; gap: 6px;">
-                  <span>🧠</span> <span><strong>AI Model</strong> <span id="success-model" style="color: var(--gold-1);">—</span> aktif</span>
+                  <span>🧠</span> <span><strong>AI Model</strong> <span id="success-model" style="color: var(--gold-1);">—</span> active</span>
                 </li>
               </ul>
             </div>
 
             <!-- Congratulatory message -->
             <div style="font-size: 12px; font-weight: 600; text-align: center; color: var(--text-1); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-              Selamat! Misi berhasil! 🚀🔥
+              Congrats! Mission accomplished! 🚀🔥
             </div>
 
             <!-- Harness address display -->
             <div style="margin-bottom: 16px;">
-              <label class="form-label" style="font-size: 11px; margin-bottom: 6px;">Simpan harness address ini baik-baik:</label>
+              <label class="form-label" style="font-size: 11px; margin-bottom: 6px;">Save this harness address carefully:</label>
               <div style="display: flex; gap: 8px; position: relative;">
                 <input type="text" class="form-input" id="success-harness-address" readonly style="font-family: var(--font-mono); font-size: 11px; color: var(--gold-1); background: rgba(200, 185, 138, 0.05); padding-right: 40px; width: 100%;">
                 <button class="btn btn-ghost" onclick="copySuccessHarnessAddress()" style="position: absolute; right: 0; top: 0; bottom: 0; padding: 0 12px; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--border-1); border-radius: 0 var(--r-sm) var(--r-sm) 0;">
@@ -1908,13 +1909,14 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <p style="font-size: 11px; color: var(--text-3); text-align: center; margin-bottom: 20px; line-height: 1.4;">
-              Untuk top up saldo nanti kalau hampir habis (~<span id="success-topup-days">—</span> hari lagi) tinggal kabarin saya! 😊
+              To top up balance later when it is running low (~<span id="success-topup-days">—</span> days left) just let me know! 😊
             </p>
 
             <button class="btn btn-ghost btn-full" onclick="resetAgentForm()">
               Deploy Another Agent
             </button>
           </div>
+          <!-- === END SOVEREIGN AGENT DEPLOYMENT SUCCESS RECEIPT TRANSLATION === -->
         </div>
 
       </div>
