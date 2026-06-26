@@ -1626,6 +1626,10 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
             margin-top: 4px;
             font-family: var(--font-mono);
           }
+          @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+          }
         </style>
 
         <div class="card agent-deploy-card" id="agent-deploy-card">
@@ -1635,7 +1639,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
               Genesis 1000 Eligible
             </span>
           </div>
-          <div class="card-body">
+          <div class="card-body" id="agent-form-body">
             <!-- === GUIDE DEPLOY SOVEREIGN AGENT === -->
             <div style="background: rgba(200, 185, 138, 0.04); border: 1px solid rgba(200, 185, 138, 0.15); border-radius: var(--r-sm); padding: 12px; margin-bottom: 16px;">
               <div style="font-weight: 600; color: var(--gold-1); font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
@@ -1785,6 +1789,98 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
               </svg>
               Deploy Sovereign Agent
+            </button>
+          </div> <!-- End of agent-form-body -->
+
+          <!-- === SOVEREIGN AGENT DEPLOYMENT SUCCESS RECEIPT (NEW) === -->
+          <div class="card-body" id="agent-success-body" style="display: none; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <span style="font-size: 40px; display: inline-block; animation: bounce 1s infinite;">🎉</span>
+              <h3 style="font-size: 16px; color: var(--gold-1); margin-top: 10px; margin-bottom: 6px; font-weight: 700; line-height: 1.4;">
+                CONFIRMED! Agent Kamu Live di Blockchain!
+              </h3>
+              <p style="font-size: 11px; color: var(--text-3); margin: 0;">Ini transaksi deploy agent kamu yang sukses:</p>
+            </div>
+
+            <!-- Receipt Table -->
+            <div style="border: 1px solid var(--border-1); border-radius: var(--r-sm); overflow: hidden; margin-bottom: 20px; background: rgba(0,0,0,0.15);">
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <thead>
+                  <tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-1);">
+                    <th style="text-align: left; padding: 10px 12px; color: var(--text-2); font-weight: 600; width: 40%;">Detail</th>
+                    <th style="text-align: left; padding: 10px 12px; color: var(--text-2); font-weight: 600;">Info</th>
+                  </tr>
+                </thead>
+                <tbody style="color: var(--text-1);">
+                  <tr style="border-bottom: 1px solid var(--border-1);">
+                    <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ Timestamp</td>
+                    <td style="padding: 10px 12px; font-family: var(--font-mono); font-size: 11px;" id="success-timestamp">—</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-1);">
+                    <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ Block</td>
+                    <td style="padding: 10px 12px; font-family: var(--font-mono); font-size: 11px;" id="success-block">—</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-1);">
+                    <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ Value</td>
+                    <td style="padding: 10px 12px;" id="success-value">—</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-1);">
+                    <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ Gas Used</td>
+                    <td style="padding: 10px 12px; font-family: var(--font-mono); font-size: 11px;" id="success-gas">—</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid var(--border-1);">
+                    <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ RitualWallet</td>
+                    <td style="padding: 10px 12px; color: var(--green); font-weight: 500;">Deposit sukses</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px;">✅ Scheduler</td>
+                    <td style="padding: 10px 12px; color: var(--green); font-weight: 500;">CallScheduled aktif</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Quick Bullet Highlights -->
+            <div style="background: rgba(200, 185, 138, 0.02); border: 1px solid rgba(200, 185, 138, 0.15); border-radius: var(--r-sm); padding: 12px; margin-bottom: 20px;">
+              <div style="font-size: 12px; font-weight: 600; color: var(--gold-1); margin-bottom: 8px;">Agent kamu sudah:</div>
+              <ul style="list-style: none; padding-left: 0; margin: 0; font-size: 11px; display: grid; gap: 8px; color: var(--text-2);">
+                <li style="display: flex; align-items: center; gap: 6px;">
+                  <span>🤖</span> <span><strong>Berjalan otomatis</strong> setiap ~<span id="success-interval">—</span> menit</span>
+                </li>
+                <li style="display: flex; align-items: center; gap: 6px;">
+                  <span>🔒</span> <span><strong>Terkunci</strong> ~<span id="success-lock">—</span> hari</span>
+                </li>
+                <li style="display: flex; align-items: center; gap: 6px;">
+                  <span>💰</span> <span><strong>Funded</strong> <span id="success-fund-amt">—</span> RITUAL (~<span id="success-fund-days">—</span> hari)</span>
+                </li>
+                <li style="display: flex; align-items: center; gap: 6px;">
+                  <span>🧠</span> <span><strong>AI Model</strong> <span id="success-model" style="color: var(--gold-1);">—</span> aktif</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Congratulatory message -->
+            <div style="font-size: 12px; font-weight: 600; text-align: center; color: var(--text-1); margin-bottom: 16px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              Selamat! Misi berhasil! 🚀🔥
+            </div>
+
+            <!-- Harness address display -->
+            <div style="margin-bottom: 16px;">
+              <label class="form-label" style="font-size: 11px; margin-bottom: 6px;">Simpan harness address ini baik-baik:</label>
+              <div style="display: flex; gap: 8px; position: relative;">
+                <input type="text" class="form-input" id="success-harness-address" readonly style="font-family: var(--font-mono); font-size: 11px; color: var(--gold-1); background: rgba(200, 185, 138, 0.05); padding-right: 40px; width: 100%;">
+                <button class="btn btn-ghost" onclick="copySuccessHarnessAddress()" style="position: absolute; right: 0; top: 0; bottom: 0; padding: 0 12px; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--border-1); border-radius: 0 var(--r-sm) var(--r-sm) 0;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <p style="font-size: 11px; color: var(--text-3); text-align: center; margin-bottom: 20px; line-height: 1.4;">
+              Untuk top up saldo nanti kalau hampir habis (~<span id="success-topup-days">—</span> hari lagi) tinggal kabarin saya! 😊
+            </p>
+
+            <button class="btn btn-ghost btn-full" onclick="resetAgentForm()">
+              Deploy Another Agent
             </button>
           </div>
         </div>
@@ -3586,6 +3682,26 @@ function toggleAgentAdvanced() {
     panel.style.display = 'none';
     caret.textContent = '▶';
   }
+function copySuccessHarnessAddress() {
+  const input = document.getElementById('success-harness-address');
+  if (!input) return;
+  navigator.clipboard.writeText(input.value)
+    .then(() => showToast('Copied to clipboard! ✓', 'success'))
+    .catch(() => {
+      input.select();
+      document.execCommand('copy');
+      showToast('Copied to clipboard! ✓', 'success');
+    });
+}
+
+function resetAgentForm() {
+  document.getElementById('agent-success-body').style.display = 'none';
+  document.getElementById('agent-form-body').style.display = 'block';
+  const statusEl = document.getElementById('agent-status');
+  if (statusEl) {
+    statusEl.style.display = 'none';
+    statusEl.textContent = '';
+  }
 }
 
 async function initSovereignAgentFlow() {
@@ -3861,6 +3977,41 @@ async function deploySovereignAgent() {
       return;
     }
     
+    // Populate Success UI
+    try {
+      const now = new Date();
+      const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
+      const formattedDate = now.toLocaleDateString('en-US', options);
+      const formattedTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      document.getElementById('success-timestamp').textContent = `${formattedDate} - ${formattedTime}`;
+      document.getElementById('success-block').textContent = configReceipt.blockNumber ? configReceipt.blockNumber.toLocaleString() : 'Pending';
+      document.getElementById('success-value').textContent = fundingInput + ' RITUAL (funded)';
+      
+      const gasUsedNum = Number(configReceipt.gasUsed);
+      const gasPercentage = ((gasUsedNum / 5000000) * 100).toFixed(1);
+      document.getElementById('success-gas').textContent = `${gasUsedNum.toLocaleString()} (${gasPercentage}%)`;
+      
+      document.getElementById('success-interval').textContent = ((freqVal * 3.5) / 60).toFixed(1);
+      document.getElementById('success-lock').textContent = ((Number(lockDuration) * 3.5) / 86400).toFixed(0);
+      document.getElementById('success-fund-amt').textContent = fundingInput;
+      
+      const daysCount = (Number(fundingInput) / 0.003).toFixed(0);
+      document.getElementById('success-fund-days').textContent = daysCount;
+      document.getElementById('success-topup-days').textContent = daysCount;
+      
+      // Model format: capitalize provider and show model name
+      let providerName = providerVal.charAt(0).toUpperCase() + providerVal.slice(1);
+      document.getElementById('success-model').textContent = `${providerName} ${model}`;
+      
+      document.getElementById('success-harness-address').value = predictedHarnessAddress;
+      
+      // Toggle card body displays
+      document.getElementById('agent-form-body').style.display = 'none';
+      document.getElementById('agent-success-body').style.display = 'block';
+    } catch (uiErr) {
+      console.error("Error updating success UI:", uiErr);
+    }
+
     setStatus(`Sovereign Agent Deployed & Configured! Harness address: ${predictedHarnessAddress}`, 'success');
     showToast('Agent Deployed Successfully! 🎉', 'success');
     
