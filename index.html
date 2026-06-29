@@ -4410,14 +4410,42 @@ async function checkAgentStatus() {
       }
     } catch(e) { /* not available */ }
 
-    // --- 3. Update UI ---
-    if (dotEl) {
-      dotEl.style.background = 'var(--green)';
-      dotEl.style.boxShadow  = '0 0 8px var(--green)';
-    }
-    if (labelEl) {
-      labelEl.textContent = 'Agent Active — contract found on Ritual Testnet';
-      labelEl.style.color = 'var(--green)';
+    // --- 3. Check Explorer Cache API for Real-Time Status ---
+    let isAgentCached = false;
+    try {
+      const cacheRes = await fetch('https://explorer.ritualfoundation.org/api/agents/cache');
+      if (cacheRes.ok) {
+        const cacheData = await cacheRes.json();
+        const found = (cacheData.sovereign || []).find(a => a.address.toLowerCase() === addr.toLowerCase());
+        if (found) {
+          isAgentCached = true;
+          // If we failed to get nextExecBlock from chain, we can estimate it or just use lastActivityBlock
+          if (found.lastActivityBlock && nextExecBlock === '—') {
+            nextExecBlock = `Last active at block ${found.lastActivityBlock}`;
+          }
+        }
+      }
+    } catch(e) { console.error('Cache API error:', e); }
+
+    // --- 4. Update UI ---
+    if (isAgentCached) {
+      if (dotEl) {
+        dotEl.style.background = 'var(--green)';
+        dotEl.style.boxShadow  = '0 0 8px var(--green)';
+      }
+      if (labelEl) {
+        labelEl.textContent = 'Agent Active (Found in Network Cache)';
+        labelEl.style.color = 'var(--green)';
+      }
+    } else {
+      if (dotEl) {
+        dotEl.style.background = 'var(--amber)';
+        dotEl.style.boxShadow  = 'none';
+      }
+      if (labelEl) {
+        labelEl.textContent = 'Agent Dormant / Pending (Not Active in Cache)';
+        labelEl.style.color = 'var(--amber)';
+      }
     }
 
     document.getElementById('as-wallet-balance').textContent = walletBalance;
@@ -4425,11 +4453,13 @@ async function checkAgentStatus() {
     const schedEl = document.getElementById('as-scheduler-status');
     if (schedEl) {
       if (schedulerActive === true) {
-        schedEl.innerHTML = '<span style="color:var(--green);font-weight:600;">Active</span>';
+        schedEl.innerHTML = '<span style="color:var(--green);font-weight:600;">Active (Contract)</span>';
       } else if (schedulerActive === false) {
-        schedEl.innerHTML = '<span style="color:var(--amber);font-weight:600;">Inactive</span>';
+        schedEl.innerHTML = '<span style="color:var(--amber);font-weight:600;">Inactive (Contract)</span>';
+      } else if (isAgentCached) {
+        schedEl.innerHTML = '<span style="color:var(--green);font-weight:600;">Active (Running)</span>';
       } else {
-        schedEl.textContent = 'N/A (read not supported)';
+        schedEl.innerHTML = '<span style="color:var(--amber);font-weight:600;">Dormant / Missing</span>';
       }
     }
     document.getElementById('as-next-exec').textContent = nextExecBlock;
