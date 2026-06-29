@@ -4390,25 +4390,35 @@ async function checkAgentStatus() {
       }
     } catch(e) { /* not available */ }
 
-    // lockEndBlock() → 0x0fb5a6b4  OR  unlockBlock() → 0x4cf088d9
+    // --- 2b. Check Lock Duration Remaining from RitualWallet ---
     let lockRemaining = '—';
     try {
-      let lockHex = await ethCall(addr, '0x0fb5a6b4');
-      if (!lockHex || lockHex === '0x') lockHex = await ethCall(addr, '0x4cf088d9');
+      const lockSel = '0x3234d31f' + addr.slice(2).padStart(64, '0'); // lockUntil(address)
+      const lockHex = await ethCall(RITUAL_WALLET, lockSel);
       if (lockHex && lockHex.length > 2) {
         const lb = Number(BigInt(lockHex));
         if (lb > 0) {
-          const cur = (typeof currentBlockNumber !== 'undefined') ? currentBlockNumber : 0;
-          const blocksLeft = lb - cur;
+          const cur = (typeof currentBlockNumber !== 'undefined' && currentBlockNumber > 0) ? currentBlockNumber : Number(BigInt(await ethCall(RITUAL_WALLET, '0x', true) || 0)); // Fallback
+          const provider = new ethers.JsonRpcProvider(RPC_POOL[0]);
+          const curBlock = await provider.getBlockNumber();
+          const blocksLeft = lb - curBlock;
+          
           if (blocksLeft > 0) {
             const daysLeft = ((blocksLeft * 3.5) / 86400).toFixed(1);
-            lockRemaining = `${blocksLeft.toLocaleString()} blocks (~${daysLeft} days)`;
+            
+            // Calculate exact date and time
+            const msLeft = blocksLeft * 3.5 * 1000;
+            const endDate = new Date(Date.now() + msLeft);
+            const dateStr = endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            const timeStr = endDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            
+            lockRemaining = `${blocksLeft.toLocaleString()} blocks (~${daysLeft} days) — Live until: ${dateStr} ${timeStr}`;
           } else {
-            lockRemaining = 'Unlocked';
+            lockRemaining = 'Unlocked / Expired';
           }
         }
       }
-    } catch(e) { /* not available */ }
+    } catch(e) { console.error('Lock read error:', e); }
 
     // --- 3. Check Explorer Cache API for Real-Time Status ---
     let isAgentCached = false;
@@ -4445,6 +4455,9 @@ async function checkAgentStatus() {
       if (labelEl) {
         labelEl.textContent = 'Agent Dormant / Pending (Not Active in Cache)';
         labelEl.style.color = 'var(--amber)';
+      }
+      if (nextExecBlock === '—') {
+        nextExecBlock = 'Waiting for Scheduler...';
       }
     }
 
