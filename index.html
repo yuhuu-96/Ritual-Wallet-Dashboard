@@ -4505,7 +4505,7 @@ async function topupAgentFund() {
     return;
   }
   
-  if (typeof activeSigner === 'undefined' || !activeSigner) {
+  if (typeof signer === 'undefined' || !signer) {
     msgEl.textContent = 'Please connect your wallet first.';
     msgEl.style.color = 'var(--red)';
     msgEl.style.display = 'block';
@@ -4522,7 +4522,7 @@ async function topupAgentFund() {
     const RITUAL_WALLET = '0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948';
     const ritualWallet = new ethers.Contract(RITUAL_WALLET, [
       'function depositFor(address user, uint256 lockDuration) external payable'
-    ], activeSigner);
+    ], signer);
     
     // Deposit directly into the harness's RitualWallet balance
     const tx = await ritualWallet.depositFor(addr, 100000000n, {
