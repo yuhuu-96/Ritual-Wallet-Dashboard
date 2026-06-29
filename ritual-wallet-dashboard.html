@@ -4427,6 +4427,19 @@ async function checkAgentStatus() {
       }
     } catch(e) { /* not available */ }
 
+    // Check SovereignAgentHarness wakeMode() -> 0x5a1b32d4
+    try {
+      const wakeHex = await ethCall(addr, '0x5a1b32d4');
+      if (wakeHex && wakeHex.length > 2) {
+        const mode = Number(BigInt(wakeHex));
+        if (mode === 1) {
+          schedulerActive = true;
+        } else if (mode === 0) {
+          schedulerActive = false;
+        }
+      }
+    } catch(e) { /* not available */ }
+
     // nextExecutionBlock() → 0x7c60eae6
     let nextExecBlock = '—';
     try {
