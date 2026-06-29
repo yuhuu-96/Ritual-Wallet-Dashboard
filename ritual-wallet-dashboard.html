@@ -2028,6 +2028,10 @@ document.addEventListener('DOMContentLoaded', () => {
                   <td style="padding:10px 14px;font-family:var(--font-mono);font-size:11px;" id="as-wallet-balance">—</td>
                 </tr>
                 <tr style="border-bottom:1px solid var(--border-1);">
+                  <td style="padding:10px 14px;color:var(--text-3);font-family:var(--font-mono);font-size:11px;">Estimated Working Runway</td>
+                  <td style="padding:10px 14px;font-family:var(--font-mono);font-size:11px;" id="as-runway-estimate">—</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border-1);">
                   <td style="padding:10px 14px;color:var(--text-3);font-family:var(--font-mono);font-size:11px;">Scheduler Status</td>
                   <td style="padding:10px 14px;font-size:11px;" id="as-scheduler-status">—</td>
                 </tr>
@@ -4359,11 +4363,32 @@ async function checkAgentStatus() {
     const RITUAL_WALLET = '0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948';
     const balSelector   = '0x70a08231' + addr.slice(2).padStart(64, '0');
     let walletBalance = '—';
+    let runwayText = '—';
     try {
       const balHex = await ethCall(RITUAL_WALLET, balSelector);
       if (balHex && balHex.length > 2) {
         const balWei = BigInt(balHex);
-        walletBalance = parseFloat(ethers.formatEther(balWei)).toFixed(4) + ' RITUAL';
+        const balEther = parseFloat(ethers.formatEther(balWei));
+        walletBalance = balEther.toFixed(4) + ' RITUAL';
+        
+        if (balEther > 0) {
+          // Calculate estimated runway (assuming ~0.0008 RITUAL per execution, and 2000 blocks frequency)
+          const costPerExec = 0.0008;
+          const execCount = balEther / costPerExec;
+          const totalBlocks = execCount * 2000;
+          const totalSeconds = totalBlocks * 3.5;
+          const daysLeft = (totalSeconds / 86400).toFixed(1);
+          
+          if (daysLeft < 1) {
+            runwayText = `~${(totalSeconds/3600).toFixed(1)} hours (Insufficient for long term)`;
+          } else {
+            const endDate = new Date(Date.now() + totalSeconds * 1000);
+            const dateStr = endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            runwayText = `~${daysLeft} days (Live until: ${dateStr})`;
+          }
+        } else {
+          runwayText = 'No funds (Dormant)';
+        }
       }
     } catch(e) { walletBalance = 'Error reading'; }
 
@@ -4462,6 +4487,8 @@ async function checkAgentStatus() {
     }
 
     document.getElementById('as-wallet-balance').textContent = walletBalance;
+    const runwayEl = document.getElementById('as-runway-estimate');
+    if (runwayEl) runwayEl.textContent = runwayText;
 
     const schedEl = document.getElementById('as-scheduler-status');
     if (schedEl) {
