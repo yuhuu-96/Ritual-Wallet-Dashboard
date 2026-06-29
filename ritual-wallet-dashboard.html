@@ -4675,13 +4675,13 @@ async function forceWakeupAgent() {
     };
     
     const schedConfig = {
-      model: modelBytes,
+      model: ethers.hexlify(modelBytes),
       windowNumCalls: windowCalls,
       provider: providerByte
     };
     
     const harness = new ethers.Contract(addr, [
-      'function configureAndStartSovereignSchedule(tuple(bytes32,bytes,bytes32[]),tuple(bytes,uint256,bytes),uint256)'
+      'function configureAndStartSovereignSchedule(tuple(bytes32 modelId, bytes dkmsKey, bytes32[] keys) dkmsReq, tuple(bytes model, uint256 windowNumCalls, bytes provider) schedConfig, uint256 allocation)'
     ], signer);
     
     msgEl.textContent = 'Confirm transaction in wallet...';

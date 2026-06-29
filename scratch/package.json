@@ -1,0 +1,12 @@
+{
+  "name": "scratch-hardhat",
+  "version": "1.0.0",
+  "description": "Simulation scratchpad",
+  "main": "test_fork.js",
+  "dependencies": {
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "hardhat": "^2.22.5"
+  }
+}

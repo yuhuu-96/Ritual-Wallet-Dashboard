@@ -1,0 +1,218 @@
+1:"$Sreact.fragment"
+2:I[79520,["/_next/static/chunks/2f42d49da79e197c.js","/_next/static/chunks/3dec0b59253cfa9d.js"],""]
+a:I[68027,["/_next/static/chunks/2f42d49da79e197c.js","/_next/static/chunks/3dec0b59253cfa9d.js"],"default"]
+d:I[14376,["/_next/static/chunks/2f42d49da79e197c.js","/_next/static/chunks/3dec0b59253cfa9d.js"],"BackgroundAnimation"]
+e:I[56224,["/_next/static/chunks/2f42d49da79e197c.js","/_next/static/chunks/3dec0b59253cfa9d.js"],"RateLimitBanner"]
+10:I[39756,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"default"]
+11:I[37457,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"default"]
+12:I[47257,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"ClientPageRoot"]
+13:I[88102,["/_next/static/chunks/2f42d49da79e197c.js","/_next/static/chunks/3dec0b59253cfa9d.js","/_next/static/chunks/e31ca5a199af7233.js","/_next/static/chunks/bc816c93192650a7.js","/_next/static/chunks/329fb8ff90a2289d.js","/_next/static/chunks/92c83ecdfa7b3f6c.js","/_next/static/chunks/9757f6e25edd33df.js","/_next/static/chunks/df54c61b1d159110.js"],"default"]
+14:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"OutletBoundary"]
+16:I[11533,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"AsyncMetadataOutlet"]
+18:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"ViewportBoundary"]
+1a:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"MetadataBoundary"]
+1b:"$Sreact.suspense"
+1d:I[48953,["/_next/static/chunks/2f42d49da79e197c.js","/_next/static/chunks/3dec0b59253cfa9d.js"],"AgentCacheProvider"]
+1e:I[13354,["/_next/static/chunks/2f42d49da79e197c.js","/_next/static/chunks/3dec0b59253cfa9d.js"],"Toaster"]
+1f:I[27201,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/7dd66bdf8a7e5707.js"],"IconMark"]
+:HL["/_next/static/chunks/083c8f20bd65bb59.css","style"]
+:HL["/_next/static/chunks/d3d9c6b6ce829834.css","style"]
+:HL["/_next/static/media/GeistMono_Variable.p.2f937313.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
+3:T1a08,
+              (function() {
+                if (typeof window === 'undefined') return;
+
+                const disableHeavyBackground =
+                  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+                if (disableHeavyBackground) {
+                  if (!document.querySelector('body \u003e .bg-fallback')) {
+                    const fallbackBg = document.createElement('div');
+                    fallbackBg.className = 'bg-fallback fixed top-0 left-0 -z-30 w-screen h-screen';
+                    fallbackBg.style.background = 'rgba(0, 0, 0, 0.96)';
+                    document.body.appendChild(fallbackBg);
+                  }
+                  return;
+                }
+                
+                // Global flag to prevent multiple initializations
+                if (window.__bgAnimInitialized) return;
+                window.__bgAnimInitialized = true;
+                
+                function initAnimation() {
+                  // Check if already exists
+                  const existing = document.querySelector('body \u003e [data-background-animation]');
+                  if (existing) {
+                    existing.style.opacity = '1';
+                    return;
+                  }
+                  
+                  const fragmentShader = `#version 300 es
+    precision highp float;
+    out vec4 glFragColor;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_time;
+uniform vec3 u_color;
+uniform float u_scale; 
+uniform float u_speed; 
+void main() {
+  vec2 st = gl_FragCoord.xy/u_resolution.xy;
+  float mr = min(u_resolution.x, u_resolution.y);
+  vec2 uv = (st.xy * 2.0 - 1.0) * u_resolution.xy / mr;
+  uv *= (1.0-u_scale) * 2.;
+  float d = -u_time * 0.5 * u_speed;
+  float a = 0.0;
+  for (float i = 0.0; i \u003c 8.0; ++i) {
+    a += cos(i - d - a * uv.x);
+    d += sin(uv.y * i + a);
+  }
+  d += u_time * 0.5 * u_speed;
+  
+  // Create green gradient variations
+  float pattern = cos(uv.x * d) * 0.5 + 0.5;
+  float pattern2 = sin(uv.y * a) * 0.5 + 0.5;
+  
+  // Green color palette based on #a0a0a0 - with more variation
+  vec3 grey1 = vec3(0.0549, 0.0314, 0.0863);
+  vec3 grey2 = vec3(0.1098, 0.0627, 0.2510);
+  vec3 grey3 = vec3(0.2275, 0.1569, 0.4392);
+  
+  // Mix green hues based on the pattern with more contrast
+  vec3 col = mix(grey1, grey2, pattern);
+  col = mix(col, grey3, pattern2 * 0.7);
+  
+  // Add some subtle variation with the original animation
+  col += vec3(cos(a  + d) * 0.04, sin(d) * 0.06, cos(a) * 0.03);
+  
+  glFragColor = vec4(col * u_color, 1.0);
+}`;
+                  
+                  const uniforms = JSON.stringify({ u_color: [1, 1, 1], u_scale: 0.58, u_speed: 0.04 });
+                  
+                  // Create fallback background
+                  if (!document.querySelector('body \u003e .bg-fallback')) {
+                    const fallbackBg = document.createElement('div');
+                    fallbackBg.className = 'bg-fallback fixed top-0 left-0 -z-30 w-screen h-screen bg-black';
+                    document.body.appendChild(fallbackBg);
+                  }
+                  
+                  // Create animation container
+                  const container = document.createElement('div');
+                  container.setAttribute('data-background-animation', '');
+                  container.className = 'fixed top-0 left-0 w-screen h-screen overflow-hidden';
+                  container.style.cssText = 'width: 100vw; height: 100vh; min-width: 100vw; min-height: 100vh; z-index: 0; opacity: 0;';
+                  
+                  const innerDiv = document.createElement('div');
+                  innerDiv.className = 'relative w-full h-full';
+                  container.appendChild(innerDiv);
+                  
+                  // Create media-shader element
+                  const mediaShader = document.createElement('media-shader');
+                  mediaShader.setAttribute('width', '1920px');
+                  mediaShader.setAttribute('height', '1080px');
+                  mediaShader.setAttribute('fragment-shader', fragmentShader);
+                  mediaShader.setAttribute('uniforms', uniforms);
+                  mediaShader.style.cssText = 'width: 100vw; height: 100vh; min-width: 100vw; min-height: 100vh; object-fit: cover;';
+                  innerDiv.appendChild(mediaShader);
+                  
+                  // Create overlay
+                  const overlay = document.createElement('div');
+                  overlay.className = 'absolute inset-0 pointer-events-none';
+                  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.72)';
+                  innerDiv.appendChild(overlay);
+                  
+                  // Store reference globally
+                  window.__bgAnimElement = container;
+                  
+                  // Append to body
+                  document.body.appendChild(container);
+                  
+                  // Monitor for removal and restore immediately
+                  const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                      mutation.removedNodes.forEach(function(node) {
+                        if (node === container || (node instanceof Element \u0026\u0026 node.contains(container))) {
+                          if (!document.body.contains(container)) {
+                            document.body.appendChild(container);
+                          }
+                        }
+                      });
+                    });
+                  });
+                  
+                  observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                  });
+                  
+                  // Fade in after delay
+                  setTimeout(function() {
+                    if (container \u0026\u0026 document.body.contains(container)) {
+                      container.style.opacity = '1';
+                    }
+                  }, 100);
+                }
+                
+                // Wait for media-shader to be available
+                function checkAndInit() {
+                  if (document.body \u0026\u0026 customElements.get('media-shader')) {
+                    initAnimation();
+                  } else {
+                    setTimeout(checkAndInit, 50);
+                  }
+                }
+                
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', function() {
+                    setTimeout(checkAndInit, 100);
+                  });
+                } else {
+                  setTimeout(checkAndInit, 100);
+                }
+              })();
+            0:{"P":null,"b":"I5JWHo-sLd-X57odQMfYI","p":"","c":["","address","0x010dd13b588a806c1f0289317e18368516c8df35"],"i":false,"f":[[["",{"children":["address",{"children":[["address","0x010dd13b588a806c1f0289317e18368516c8df35","d"],{"children":["__PAGE__",{}]}]}]},"$undefined","$undefined",true],["",["$","$1","c",{"children":[[["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/083c8f20bd65bb59.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","link","1",{"rel":"stylesheet","href":"/_next/static/chunks/d3d9c6b6ce829834.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}],["$","script","script-0",{"src":"/_next/static/chunks/2f42d49da79e197c.js","async":true,"nonce":"$undefined"}],["$","script","script-1",{"src":"/_next/static/chunks/3dec0b59253cfa9d.js","async":true,"nonce":"$undefined"}]],["$","html",null,{"lang":"en","suppressHydrationWarning":true,"className":"bg-transparent","children":[["$","head",null,{"children":[["$","link",null,{"rel":"manifest","href":"/site.webmanifest"}],["$","meta",null,{"name":"theme-color","content":"#141617"}],["$","style",null,{"children":"\
+          html { \
+            background-color: transparent !important; \
+            margin: 0; \
+            padding: 0; \
+          }\
+          body {\
+            background-color: transparent !important;\
+          }\
+          media-shader {\
+            display: block !important;\
+            position: fixed !important;\
+            top: 0 !important;\
+            left: 0 !important;\
+            width: 100vw !important;\
+            height: 100vh !important;\
+            min-width: 100vw !important;\
+            min-height: 100vh !important;\
+            object-fit: cover !important;\
+            z-index: 0 !important;\
+            pointer-events: none !important;\
+          }\
+          @media (prefers-reduced-motion: reduce) {\
+            media-shader,\
+            [data-background-animation] {\
+              display: none !important;\
+            }\
+            body {\
+              background: rgba(0, 0, 0, 0.96) !important;\
+            }\
+          }\
+        "}]]}],["$","body",null,{"className":"geistmono_157ca88a-module__iaM1Ya__variable antialiased bg-transparent","style":{"fontFamily":"Barlow, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"},"children":[["$","$L2",null,{"src":"https://unpkg.com/media-shader@latest/media-shader.js","strategy":"beforeInteractive"}],["$","$L2",null,{"id":"background-animation-init","strategy":"afterInteractive","dangerouslySetInnerHTML":{"__html":"$3"}}],"$L4","$L5"]}]]}]]}],{"children":["address","$L6",{"children":[["address","0x010dd13b588a806c1f0289317e18368516c8df35","d"],"$L7",{"children":["__PAGE__","$L8",{},null,false]},null,false]},null,false]},null,false],"$L9",false]],"m":"$undefined","G":["$a",["$Lb","$Lc"]],"s":false,"S":false}
+4:["$","$Ld",null,{}]
+5:["$","div",null,{"style":{"position":"relative","zIndex":10,"backgroundColor":"transparent"},"children":[["$","$Le",null,{}],"$Lf"]}]
+6:["$","$1","c",{"children":[null,["$","$L10",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L11",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}]
+7:["$","$1","c",{"children":[[["$","script","script-0",{"src":"/_next/static/chunks/e31ca5a199af7233.js","async":true,"nonce":"$undefined"}]],["$","$L10",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L11",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":"$undefined","forbidden":"$undefined","unauthorized":"$undefined"}]]}]
+8:["$","$1","c",{"children":[["$","$L12",null,{"Component":"$13","searchParams":{},"params":{"address":"0x010dd13b588a806c1f0289317e18368516c8df35"}}],[["$","script","script-0",{"src":"/_next/static/chunks/bc816c93192650a7.js","async":true,"nonce":"$undefined"}],["$","script","script-1",{"src":"/_next/static/chunks/329fb8ff90a2289d.js","async":true,"nonce":"$undefined"}],["$","script","script-2",{"src":"/_next/static/chunks/92c83ecdfa7b3f6c.js","async":true,"nonce":"$undefined"}],["$","script","script-3",{"src":"/_next/static/chunks/9757f6e25edd33df.js","async":true,"nonce":"$undefined"}],["$","script","script-4",{"src":"/_next/static/chunks/df54c61b1d159110.js","async":true,"nonce":"$undefined"}]],["$","$L14",null,{"children":["$L15",["$","$L16",null,{"promise":"$@17"}]]}]]}]
+9:["$","$1","h",{"children":[null,[["$","$L18",null,{"children":"$L19"}],null],["$","$L1a",null,{"children":["$","div",null,{"hidden":true,"children":["$","$1b",null,{"fallback":null,"children":"$L1c"}]}]}]]}]
+b:["$","link","0",{"rel":"stylesheet","href":"/_next/static/chunks/083c8f20bd65bb59.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]
+c:["$","link","1",{"rel":"stylesheet","href":"/_next/static/chunks/d3d9c6b6ce829834.css","precedence":"next","crossOrigin":"$undefined","nonce":"$undefined"}]
+f:[["$","$L1d",null,{}],["$","$L10",null,{"parallelRouterKey":"children","error":"$undefined","errorStyles":"$undefined","errorScripts":"$undefined","template":["$","$L11",null,{}],"templateStyles":"$undefined","templateScripts":"$undefined","notFound":[[["$","title",null,{"children":"404: This page could not be found."}],["$","div",null,{"style":{"fontFamily":"system-ui,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif,\"Apple Color Emoji\",\"Segoe UI Emoji\"","height":"100vh","textAlign":"center","display":"flex","flexDirection":"column","alignItems":"center","justifyContent":"center"},"children":["$","div",null,{"children":[["$","style",null,{"dangerouslySetInnerHTML":{"__html":"body{color:#000;background:#fff;margin:0}.next-error-h1{border-right:1px solid rgba(0,0,0,.3)}@media (prefers-color-scheme:dark){body{color:#fff;background:#000}.next-error-h1{border-right:1px solid rgba(255,255,255,.3)}}"}}],["$","h1",null,{"className":"next-error-h1","style":{"display":"inline-block","margin":"0 20px 0 0","padding":"0 23px 0 0","fontSize":24,"fontWeight":500,"verticalAlign":"top","lineHeight":"49px"},"children":404}],["$","div",null,{"style":{"display":"inline-block"},"children":["$","h2",null,{"style":{"fontSize":14,"fontWeight":400,"lineHeight":"49px","margin":0},"children":"This page could not be found."}]}]]}]}]],[]],"forbidden":"$undefined","unauthorized":"$undefined"}],["$","$L1e",null,{}]]
+19:[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"}]]
+15:null
+17:{"metadata":[["$","title","0",{"children":"Address ⋅ 0x010d...df35 ⋅ Ritual"}],["$","meta","1",{"name":"description","content":"Address 0x010d...df35 on Ritual"}],["$","meta","2",{"name":"author","content":"Ritual"}],["$","link","3",{"rel":"manifest","href":"/site.webmanifest","crossOrigin":"$undefined"}],["$","meta","4",{"name":"keywords","content":"ritualscan,ritual,blockchain,explorer,transactions,blocks,agents,validators"}],["$","meta","5",{"name":"creator","content":"Ritual"}],["$","meta","6",{"name":"publisher","content":"Ritual"}],["$","meta","7",{"name":"robots","content":"index, follow"}],["$","meta","8",{"name":"googlebot","content":"index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1"}],["$","meta","9",{"name":"format-detection","content":"telephone=no, address=no, email=no"}],["$","meta","10",{"property":"og:title","content":"Address ⋅ 0x010d...df35"}],["$","meta","11",{"property":"og:description","content":"Address 0x010d...df35 on Ritual"}],["$","meta","12",{"property":"og:image","content":"https://explorer.ritualfoundation.org/og-image.jpg?v=3"}],["$","meta","13",{"property":"og:image:width","content":"1024"}],["$","meta","14",{"property":"og:image:height","content":"536"}],["$","meta","15",{"property":"og:image:alt","content":"Ritual Explorer"}],["$","meta","16",{"name":"twitter:card","content":"summary_large_image"}],["$","meta","17",{"name":"twitter:title","content":"Address ⋅ 0x010d...df35"}],["$","meta","18",{"name":"twitter:description","content":"Address 0x010d...df35 on Ritual"}],["$","meta","19",{"name":"twitter:image","content":"https://explorer.ritualfoundation.org/og-image.jpg?v=3"}],["$","link","20",{"rel":"icon","href":"/favicon.ico?favicon.0b3bf435.ico","sizes":"256x256","type":"image/x-icon"}],["$","link","21",{"rel":"icon","href":"/favicon.webp","type":"image/webp"}],["$","link","22",{"rel":"icon","href":"/favicon-32x32.png","sizes":"32x32","type":"image/png"}],["$","link","23",{"rel":"icon","href":"/favicon-16x16.png","sizes":"16x16","type":"image/png"}],["$","link","24",{"rel":"icon","href":"/favicon.ico","sizes":"any"}],["$","link","25",{"rel":"apple-touch-icon","href":"/apple-touch-icon.png","sizes":"180x180","type":"image/png"}],["$","$L1f","26",{}]],"error":null,"digest":"$undefined"}
+1c:"$17:metadata"
