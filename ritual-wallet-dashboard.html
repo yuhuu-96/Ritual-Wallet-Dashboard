@@ -2074,7 +2074,10 @@ document.addEventListener('DOMContentLoaded', () => {
               </select>
               <input type="password" class="form-input" id="wu-api-key" placeholder="API Key" style="font-size: 12px; padding: 6px 10px;">
               <input type="text" class="form-input" id="wu-model" placeholder="Model (e.g. gemini-2.5-flash)" value="gemini-2.5-flash" style="font-size: 12px; padding: 6px 10px;">
-              <textarea class="form-input" id="wu-prompt" placeholder="AI Prompt Instruction" style="font-size: 12px; padding: 6px 10px; height: 50px; resize: none;"></textarea>
+              <div style="position: relative;">
+                <textarea class="form-input" id="wu-prompt" placeholder="AI Prompt Instruction" style="font-size: 12px; padding: 6px 10px; height: 50px; resize: none; width: 100%; box-sizing: border-box;"></textarea>
+                <button type="button" class="btn btn-ghost" onclick="generateRandomPrompt()" style="position: absolute; top: 6px; right: 6px; padding: 4px 8px; font-size: 10px; color: var(--gold-1); background: var(--bg-3); border: 1px solid var(--border-1); border-radius: var(--r-sm); cursor: pointer; z-index: 2;">Randomize</button>
+              </div>
               <button class="btn btn-primary" id="wu-btn" onclick="forceWakeupAgent()" style="font-size: 12px; padding: 8px;">Wake Up Agent Now</button>
               <div id="wu-msg" style="font-size: 11px; text-align: center; display: none;"></div>
             </div>
@@ -4620,6 +4623,25 @@ function toggleWakeupForm() {
   }
 }
 
+function generateRandomPrompt() {
+  const prompts = [
+    "You are an elite, omniscient cyber-security auditor. Analyze all inputs for zero-day vulnerabilities, cryptographic weaknesses, and logical flaws. Provide precise, actionable exploit proofs and mitigation strategies.",
+    "You are a highly advanced sovereign financial analyst. Monitor market sentiment, detect arbitrage opportunities across decentralized exchanges, and execute optimal trading strategies with zero human intervention.",
+    "You are a specialized autonomous researcher. Scrape the provided context, cross-reference with global knowledge bases, and synthesize groundbreaking insights with full academic citations and zero bias.",
+    "You are a master generative architect. Design complex, hyper-optimized smart contracts. Ensure formal verification standards are met and output production-ready code with maximum gas optimization.",
+    "You are an autonomous meta-agent. Your primary directive is self-improvement. Analyze your own cognitive loops, identify inefficiencies, and execute upgraded system logic to maximize your autonomous utility.",
+    "You are an impartial, cryptographically secure bounty judge. Evaluate submissions against strict predefined conditions, verify cryptographic proofs, and definitively rule on the allocation of funds without human bias."
+  ];
+  const rand = prompts[Math.floor(Math.random() * prompts.length)];
+  const promptEl = document.getElementById('wu-prompt');
+  promptEl.value = rand;
+  
+  // Highlight briefly
+  promptEl.style.transition = 'box-shadow 0.3s';
+  promptEl.style.boxShadow = '0 0 8px var(--gold-1)';
+  setTimeout(() => { promptEl.style.boxShadow = 'none'; }, 600);
+}
+
 async function forceWakeupAgent() {
   const msgEl = document.getElementById('wu-msg');
   const btn = document.getElementById('wu-btn');
@@ -4681,18 +4703,25 @@ async function forceWakeupAgent() {
     };
     
     const harness = new ethers.Contract(addr, [
-      'function configureAndStartSovereignSchedule(tuple(bytes32 modelId, bytes dkmsKey, bytes32[] keys) dkmsReq, tuple(bytes model, uint256 windowNumCalls, bytes provider) schedConfig, uint256 allocation)'
+      'function restart() external returns (uint256)'
     ], signer);
     
-    msgEl.textContent = 'Confirm transaction in wallet...';
+    msgEl.textContent = 'Checking agent status...';
     
-    // Send 0 funding because they already topped up
-    const tx = await harness.configureAndStartSovereignSchedule(
-      dkmsReq,
-      schedConfig,
-      100000000n,
-      { value: 0n, gasLimit: 5000000n }
-    );
+    try {
+      // Simulate first to prevent wasted gas
+      await harness.restart.staticCall();
+    } catch (simErr) {
+      console.log("Simulation error:", simErr);
+      if (simErr.data === '0x740d9e57' || (simErr.message && simErr.message.includes('0x740d9e57'))) {
+        throw new Error('Agent cannot be restarted (it may already be active). If it stopped executing, please use the "Add Fund" button above to top-up its balance.');
+      }
+      throw simErr;
+    }
+    
+    msgEl.textContent = 'Confirm restart in wallet... (Note: Prompt/Key updates require a new agent deployment)';
+    
+    const tx = await harness.restart({ gasLimit: 300000n });
     
     msgEl.textContent = 'Transaction submitted, waiting...';
     await tx.wait();
@@ -4707,7 +4736,11 @@ async function forceWakeupAgent() {
     }, 2000);
   } catch (err) {
     console.error('Wakeup Error:', err);
-    msgEl.textContent = 'Error: ' + (err.reason || err.message);
+    if (err.data === '0x740d9e57' || (err.message && err.message.includes('0x740d9e57'))) {
+      msgEl.textContent = 'Agent is already active! If it stopped executing, please use the Top-Up Agent Fund button above.';
+    } else {
+      msgEl.textContent = 'Error: ' + (err.reason || err.message);
+    }
     msgEl.style.color = 'var(--red)';
   } finally {
     btn.disabled = false;
