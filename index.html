@@ -2054,7 +2054,30 @@ document.addEventListener('DOMContentLoaded', () => {
               <input type="number" class="form-input" id="agent-topup-amount" placeholder="0.2 RITUAL" value="0.2" step="any" min="0.1" style="font-size: 12px; width: 120px;">
               <button class="btn btn-primary" onclick="topupAgentFund()" style="font-size: 11px; padding: 6px 12px; height: 34px;">Add Fund</button>
             </div>
-            <div id="agent-topup-msg" style="font-size: 10px; color: var(--text-3); font-family: var(--font-mono); display: none;"></div>
+            <div id="agent-topup-msg" style="font-size: 10px; color: var(--text-3); font-family: var(--font-mono); display: none; margin-bottom: 8px;"></div>
+            
+            <!-- Force Wake Up Toggle -->
+            <button class="btn btn-ghost" onclick="toggleWakeupForm()" style="font-size: 11px; padding: 5px 10px; align-self: flex-start; color: var(--gold-1);">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: middle;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Force Wake Up (Restart Schedule)
+            </button>
+            
+            <!-- Force Wake Up Form (Hidden by default) -->
+            <div id="agent-wakeup-form" style="display: none; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--border-1); margin-top: 4px;">
+              <div style="font-size: 11px; color: var(--text-2); margin-bottom: 4px;">Enter API Keys to resubmit schedule directly to this agent:</div>
+              <input type="text" class="form-input" id="wu-hf-repo" placeholder="HuggingFace Repo (user/repo)" style="font-size: 12px; padding: 6px 10px;">
+              <input type="password" class="form-input" id="wu-hf-token" placeholder="HuggingFace Write Token (hf_...)" style="font-size: 12px; padding: 6px 10px;">
+              <select class="form-input" id="wu-provider" style="font-size: 12px; padding: 6px 10px;">
+                <option value="gemini">Gemini (Recommended)</option>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+              </select>
+              <input type="password" class="form-input" id="wu-api-key" placeholder="API Key" style="font-size: 12px; padding: 6px 10px;">
+              <input type="text" class="form-input" id="wu-model" placeholder="Model (e.g. gemini-2.5-flash)" value="gemini-2.5-flash" style="font-size: 12px; padding: 6px 10px;">
+              <textarea class="form-input" id="wu-prompt" placeholder="AI Prompt Instruction" style="font-size: 12px; padding: 6px 10px; height: 50px; resize: none;"></textarea>
+              <button class="btn btn-primary" id="wu-btn" onclick="forceWakeupAgent()" style="font-size: 12px; padding: 8px;">Wake Up Agent Now</button>
+              <div id="wu-msg" style="font-size: 11px; text-align: center; display: none;"></div>
+            </div>
           </div>
 
           <!-- Checked-at timestamp -->
@@ -4585,6 +4608,109 @@ async function topupAgentFund() {
     console.error('Topup error:', err);
     msgEl.textContent = 'Error: ' + (err.message || 'Transaction failed');
     msgEl.style.color = 'var(--red)';
+  }
+}
+// === WAKE UP AGENT LOGIC ===
+function toggleWakeupForm() {
+  const form = document.getElementById('agent-wakeup-form');
+  if (form.style.display === 'none') {
+    form.style.display = 'flex';
+  } else {
+    form.style.display = 'none';
+  }
+}
+
+async function forceWakeupAgent() {
+  const msgEl = document.getElementById('wu-msg');
+  const btn = document.getElementById('wu-btn');
+  const addr = document.getElementById('agent-status-address').value.trim();
+  
+  if (!addr) return;
+  
+  const hfRepoId = document.getElementById('wu-hf-repo').value.trim();
+  const hfToken = document.getElementById('wu-hf-token').value.trim();
+  const providerVal = document.getElementById('wu-provider').value;
+  const apiKey = document.getElementById('wu-api-key').value.trim();
+  const model = document.getElementById('wu-model').value.trim();
+  const prompt = document.getElementById('wu-prompt').value.trim();
+  
+  if (!hfRepoId || !hfToken || !apiKey || !model || !prompt) {
+    msgEl.textContent = 'Please fill all fields.';
+    msgEl.style.color = 'var(--red)';
+    msgEl.style.display = 'block';
+    return;
+  }
+  
+  if (typeof signer === 'undefined' || !signer) {
+    msgEl.textContent = 'Please connect wallet.';
+    msgEl.style.color = 'var(--red)';
+    msgEl.style.display = 'block';
+    return;
+  }
+  
+  btn.disabled = true;
+  msgEl.textContent = 'Preparing configuration...';
+  msgEl.style.color = 'var(--text-1)';
+  msgEl.style.display = 'block';
+  
+  try {
+    // Determine provider byte (0=openai, 1=anthropic, 2=gemini)
+    let providerByte;
+    if (providerVal === 'openai') providerByte = '0x00';
+    else if (providerVal === 'anthropic') providerByte = '0x01';
+    else providerByte = '0x02'; // gemini
+    
+    const abiCoder = new ethers.AbiCoder();
+    const modelBytes = ethers.toUtf8Bytes(model);
+    const dkmsKeyHex = ethers.hexlify(ethers.toUtf8Bytes(apiKey));
+    const dkmsTokenHex = ethers.hexlify(ethers.toUtf8Bytes(hfToken));
+    
+    // Default configs for quick wake up
+    const windowCalls = 5;
+    
+    const dkmsReq = {
+      modelId: ethers.keccak256(modelBytes),
+      dkmsKey: dkmsKeyHex,
+      keys: [ethers.keccak256(dkmsTokenHex)]
+    };
+    
+    const schedConfig = {
+      model: modelBytes,
+      windowNumCalls: windowCalls,
+      provider: providerByte
+    };
+    
+    const harness = new ethers.Contract(addr, [
+      'function configureAndStartSovereignSchedule(tuple(bytes32,bytes,bytes32[]),tuple(bytes,uint256,bytes),uint256)'
+    ], signer);
+    
+    msgEl.textContent = 'Confirm transaction in wallet...';
+    
+    // Send 0 funding because they already topped up
+    const tx = await harness.configureAndStartSovereignSchedule(
+      dkmsReq,
+      schedConfig,
+      100000000n,
+      { value: 0n, gasLimit: 5000000n }
+    );
+    
+    msgEl.textContent = 'Transaction submitted, waiting...';
+    await tx.wait();
+    
+    msgEl.textContent = 'Wake up successful! Agent is active.';
+    msgEl.style.color = 'var(--green)';
+    
+    // Hide form and refresh
+    setTimeout(() => {
+      document.getElementById('agent-wakeup-form').style.display = 'none';
+      checkAgentStatus();
+    }, 2000);
+  } catch (err) {
+    console.error('Wakeup Error:', err);
+    msgEl.textContent = 'Error: ' + (err.reason || err.message);
+    msgEl.style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
   }
 }
 // === END AGENT STATUS CHECK FUNCTIONS ===
