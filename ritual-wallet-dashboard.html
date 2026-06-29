@@ -1743,6 +1743,17 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
               <textarea class="form-input" id="agent-prompt" rows="2" style="resize: vertical; min-height: 48px;" placeholder="e.g. You are a helpful Sovereign Agent.">Say hello world</textarea>
             </div>
 
+            <!-- Agent Lifespan Preset -->
+            <div class="form-group" style="margin-bottom: 12px; padding-top: 12px; border-top: 1px dashed rgba(200, 185, 138, 0.2);">
+              <label class="form-label">Agent Lifespan Option</label>
+              <select class="form-input" id="agent-lifespan" onchange="handleLifespanChange()" style="font-weight: 500; color: var(--gold-1);">
+                <option value="test">Short Term / Test (~1 Day) - 0.2 RITUAL</option>
+                <option value="short">Medium Term (~1 Month) - 0.5 RITUAL</option>
+                <option value="long">Long Term (~1 Year) - 1.0 RITUAL</option>
+                <option value="custom" selected>Custom (Set in Advanced Settings)</option>
+              </select>
+            </div>
+
             <!-- Advanced Settings (Expandable) -->
             <div style="margin-bottom: 12px;">
               <span onclick="toggleAgentAdvanced()" style="font-size: 11px; color: var(--gold-1); cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px;">
@@ -1757,9 +1768,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
                   </div>
                   <div class="form-group">
                     <label class="form-label">Frequency (Blocks)</label>
-                    <!-- === ADVANCED SETTINGS DEFAULT & MIN VALUES (NEW) === -->
                     <input type="number" class="form-input" id="agent-frequency" value="2000" min="1000">
-                    <!-- === END ADVANCED SETTINGS DEFAULT & MIN VALUES === -->
                     <div style="font-size: 10px; color: var(--text-3); margin-top: 4px;">Recommended: 2000 blocks</div>
                   </div>
                 </div>
@@ -1772,9 +1781,7 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
                   </div>
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Lock Duration (Blocks)</label>
-                    <!-- === ADVANCED SETTINGS DEFAULT & MIN VALUES (NEW) === -->
                     <input type="number" class="form-input" id="agent-lock-duration" value="100000000" min="1000000">
-                    <!-- === END ADVANCED SETTINGS DEFAULT & MIN VALUES === -->
                     <div style="font-size: 10px; color: var(--text-3); margin-top: 4px;">Recommended: 100000000</div>
                   </div>
                 </div>
@@ -1782,11 +1789,36 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
             </div>
 
 <script>
-// === ADVANCED SETTINGS VALIDATION (NEW) ===
+<script>
+// === AGENT LIFESPAN AND ADVANCED SETTINGS VALIDATION ===
+function handleLifespanChange() {
+  const lifespan = document.getElementById('agent-lifespan').value;
+  const fundingEl = document.getElementById('agent-funding');
+  const lockEl = document.getElementById('agent-lock-duration');
+  
+  if (!fundingEl || !lockEl) return;
+  
+  if (lifespan === 'long') {
+    fundingEl.value = '1.0';
+    lockEl.value = '100000000';
+  } else if (lifespan === 'short') {
+    fundingEl.value = '0.5';
+    lockEl.value = '7500000';
+  } else if (lifespan === 'test') {
+    fundingEl.value = '0.2';
+    lockEl.value = '250000';
+  }
+  
+  if (lifespan !== 'custom') {
+    validateAgentFunding();
+  }
+}
+
 function validateAgentFunding() {
   const fundingEl = document.getElementById('agent-funding');
   const warningEl = document.getElementById('agent-funding-warning');
   const deployBtn = document.getElementById('deploy-agent-btn');
+  const lifespanEl = document.getElementById('agent-lifespan');
   if (!fundingEl || !deployBtn) return;
   
   const val = parseFloat(fundingEl.value);
@@ -1807,13 +1839,18 @@ function validateAgentFunding() {
 
 document.addEventListener('DOMContentLoaded', () => {
   const fundingEl = document.getElementById('agent-funding');
+  const lockEl = document.getElementById('agent-lock-duration');
+  const lifespanEl = document.getElementById('agent-lifespan');
   if (fundingEl) {
-    fundingEl.addEventListener('input', validateAgentFunding);
-    fundingEl.addEventListener('change', validateAgentFunding);
+    fundingEl.addEventListener('input', () => { if(lifespanEl) lifespanEl.value = 'custom'; validateAgentFunding(); });
+    fundingEl.addEventListener('change', () => { if(lifespanEl) lifespanEl.value = 'custom'; validateAgentFunding(); });
     validateAgentFunding();
   }
+  if (lockEl) {
+    lockEl.addEventListener('input', () => { if(lifespanEl) lifespanEl.value = 'custom'; });
+  }
 });
-// === END ADVANCED SETTINGS VALIDATION ===
+// === END AGENT LIFESPAN AND ADVANCED SETTINGS VALIDATION ===
 </script>
 
             <!-- Status Message -->
@@ -2004,6 +2041,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          <!-- Top Up Action -->
+          <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed rgba(200, 185, 138, 0.2); display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 11px; font-weight: 500; color: var(--gold-1);">Top-Up Agent Fund</div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="number" class="form-input" id="agent-topup-amount" placeholder="0.2 RITUAL" value="0.2" step="any" min="0.1" style="font-size: 12px; width: 120px;">
+              <button class="btn btn-primary" onclick="topupAgentFund()" style="font-size: 11px; padding: 6px 12px; height: 34px;">Add Fund</button>
+            </div>
+            <div id="agent-topup-msg" style="font-size: 10px; color: var(--text-3); font-family: var(--font-mono); display: none;"></div>
           </div>
 
           <!-- Checked-at timestamp -->
@@ -4400,6 +4447,74 @@ async function checkAgentStatus() {
     msgEl.style.color = 'var(--red)';
   } finally {
     if (checkBtn) { checkBtn.disabled = false; checkBtn.style.opacity = '1'; }
+  }
+}
+
+async function topupAgentFund() {
+  const amountInput = document.getElementById('agent-topup-amount');
+  const msgEl = document.getElementById('agent-topup-msg');
+  const addrInput = document.getElementById('agent-status-address');
+  
+  if (!amountInput || !msgEl || !addrInput) return;
+  
+  const amtStr = amountInput.value.trim();
+  const addr = (addrInput.value || '').trim();
+  
+  if (!addr || !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    msgEl.textContent = 'Please check the agent first.';
+    msgEl.style.color = 'var(--red)';
+    msgEl.style.display = 'block';
+    return;
+  }
+  
+  const amt = parseFloat(amtStr);
+  if (isNaN(amt) || amt <= 0) {
+    msgEl.textContent = 'Invalid amount.';
+    msgEl.style.color = 'var(--red)';
+    msgEl.style.display = 'block';
+    return;
+  }
+  
+  if (typeof activeSigner === 'undefined' || !activeSigner) {
+    msgEl.textContent = 'Please connect your wallet first.';
+    msgEl.style.color = 'var(--red)';
+    msgEl.style.display = 'block';
+    return;
+  }
+  
+  msgEl.textContent = 'Initiating Top-Up transaction...';
+  msgEl.style.color = 'var(--text-2)';
+  msgEl.style.display = 'block';
+  
+  try {
+    const amtWei = ethers.parseEther(amt.toString());
+    
+    const RITUAL_WALLET = '0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948';
+    const ritualWallet = new ethers.Contract(RITUAL_WALLET, [
+      'function depositFor(address user, uint256 lockDuration) external payable'
+    ], activeSigner);
+    
+    // Deposit directly into the harness's RitualWallet balance
+    const tx = await ritualWallet.depositFor(addr, 100000000n, {
+      value: amtWei,
+      gasLimit: 500000n
+    });
+    
+    msgEl.textContent = `Tx submitted: ${tx.hash.slice(0,10)}... waiting for confirmation.`;
+    
+    const receipt = await tx.wait();
+    if (receipt.status === 1) {
+      msgEl.textContent = '✅ Top-Up Successful!';
+      msgEl.style.color = 'var(--green)';
+      setTimeout(checkAgentStatus, 2000);
+    } else {
+      msgEl.textContent = 'Transaction reverted.';
+      msgEl.style.color = 'var(--red)';
+    }
+  } catch(err) {
+    console.error('Topup error:', err);
+    msgEl.textContent = 'Error: ' + (err.message || 'Transaction failed');
+    msgEl.style.color = 'var(--red)';
   }
 }
 // === END AGENT STATUS CHECK FUNCTIONS ===
