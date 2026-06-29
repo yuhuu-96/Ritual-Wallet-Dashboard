@@ -4393,29 +4393,29 @@ async function checkAgentStatus() {
     // --- 2b. Check Lock Duration Remaining from RitualWallet ---
     let lockRemaining = '—';
     try {
-      const lockSel = '0x3234d31f' + addr.slice(2).padStart(64, '0'); // lockUntil(address)
-      const lockHex = await ethCall(RITUAL_WALLET, lockSel);
-      if (lockHex && lockHex.length > 2) {
-        const lb = Number(BigInt(lockHex));
-        if (lb > 0) {
-          const cur = (typeof currentBlockNumber !== 'undefined' && currentBlockNumber > 0) ? currentBlockNumber : Number(BigInt(await ethCall(RITUAL_WALLET, '0x', true) || 0)); // Fallback
-          const provider = new ethers.JsonRpcProvider(RPC_POOL[0]);
-          const curBlock = await provider.getBlockNumber();
-          const blocksLeft = lb - curBlock;
+      const provider = new ethers.JsonRpcProvider(RPC_POOL[0]);
+      const rwContract = new ethers.Contract(RITUAL_WALLET, [
+        'function lockUntil(address user) view returns (uint256)'
+      ], provider);
+      
+      const lockVal = await rwContract.lockUntil(addr);
+      if (lockVal > 0n) {
+        const lb = Number(lockVal);
+        const curBlock = await provider.getBlockNumber();
+        const blocksLeft = lb - curBlock;
+        
+        if (blocksLeft > 0) {
+          const daysLeft = ((blocksLeft * 3.5) / 86400).toFixed(1);
           
-          if (blocksLeft > 0) {
-            const daysLeft = ((blocksLeft * 3.5) / 86400).toFixed(1);
-            
-            // Calculate exact date and time
-            const msLeft = blocksLeft * 3.5 * 1000;
-            const endDate = new Date(Date.now() + msLeft);
-            const dateStr = endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-            const timeStr = endDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-            
-            lockRemaining = `${blocksLeft.toLocaleString()} blocks (~${daysLeft} days) — Live until: ${dateStr} ${timeStr}`;
-          } else {
-            lockRemaining = 'Unlocked / Expired';
-          }
+          // Calculate exact date and time
+          const msLeft = blocksLeft * 3.5 * 1000;
+          const endDate = new Date(Date.now() + msLeft);
+          const dateStr = endDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+          const timeStr = endDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+          
+          lockRemaining = `${blocksLeft.toLocaleString()} blocks (~${daysLeft} days) — Live until: ${dateStr} ${timeStr}`;
+        } else {
+          lockRemaining = 'Unlocked / Expired';
         }
       }
     } catch(e) { console.error('Lock read error:', e); }
