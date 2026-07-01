@@ -4290,7 +4290,7 @@ async function deploySovereignAgent() {
       document.getElementById('agent-form-body').style.display = 'none';
       document.getElementById('agent-success-body').style.display = 'block';
     } catch (uiErr) {
-      console.error("Error updating success UI:", uiErr);
+      // console.error("Error updating success UI:", uiErr);
     }
 
     setStatus(`Sovereign Agent Deployed & Configured! Harness address: ${predictedHarnessAddress}`, 'success');
@@ -4298,7 +4298,7 @@ async function deploySovereignAgent() {
     
     if (typeof refreshStats === 'function') refreshStats();
   } catch (err) {
-    console.error("Agent Deployment Error:", err);
+    // console.error("Agent Deployment Error:", err);
     setStatus(`Deployment Failed: ${err.reason || err.message || err}`, 'error');
     showToast('Deployment failed', 'error');
   } finally {
@@ -4372,17 +4372,14 @@ async function checkAgentStatus() {
     // Minimal ABI selectors for SovereignHarness / Scheduler
     // We use low-level eth_call to avoid needing a full ABI
     async function ethCall(to, data) {
-      const rpcUrl = (typeof activeRpcUrl !== 'undefined') ? activeRpcUrl : RPC_POOL[0];
-      const res = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0', method: 'eth_call',
-          params: [{ to, data }, 'latest'], id: 99
-        })
-      });
-      const j = await res.json();
-      return j.result || '0x';
+      try {
+        const rpcUrl = (typeof activeRpcUrl !== 'undefined') ? activeRpcUrl : RPC_POOL[0];
+        const tempRpc = new ethers.JsonRpcProvider(rpcUrl);
+        const fromAddr = (typeof userAddress !== 'undefined' && userAddress) ? userAddress : undefined;
+        return await tempRpc.call({ to, data, from: fromAddr });
+      } catch (err) {
+        throw err;
+      }
     }
 
     // RitualWallet balanceOf(address) → 0x70a08231
@@ -4439,6 +4436,19 @@ async function checkAgentStatus() {
         }
       }
     } catch(e) { /* not available */ }
+
+    // Fallback: check if restart() reverts with AgentActive()
+    if (schedulerActive === null) {
+      try {
+        const dummyProvider = new ethers.JsonRpcProvider((typeof activeRpcUrl !== 'undefined') ? activeRpcUrl : RPC_POOL[0]);
+        const dummyHarness = new ethers.Contract(addr, ['function restart() external returns (uint256)'], (typeof signer !== 'undefined' && signer) ? signer : dummyProvider);
+        await dummyHarness.restart.staticCall();
+      } catch(err) {
+        if (err.data === '0x740d9e57' || (err.message && err.message.includes('0x740d9e57'))) {
+          schedulerActive = true;
+        }
+      }
+    }
 
     // nextExecutionBlock() → 0x7c60eae6
     let nextExecBlock = '—';
@@ -4511,6 +4521,15 @@ async function checkAgentStatus() {
         labelEl.textContent = 'Agent Active (Found in Network Cache)';
         labelEl.style.color = 'var(--green)';
       }
+    } else if (schedulerActive === true) {
+      if (dotEl) {
+        dotEl.style.background = 'var(--green)';
+        dotEl.style.boxShadow  = '0 0 8px var(--green)';
+      }
+      if (labelEl) {
+        labelEl.textContent = 'Agent Active (Contract level, Pending Cache)';
+        labelEl.style.color = 'var(--green)';
+      }
     } else {
       if (dotEl) {
         dotEl.style.background = 'var(--amber)';
@@ -4551,7 +4570,7 @@ async function checkAgentStatus() {
     msgEl.textContent = '';
 
   } catch (err) {
-    console.error('Agent status check error:', err);
+    // console.error('Agent status check error:', err);
     msgEl.textContent = 'Error: ' + (err.message || 'RPC call failed');
     msgEl.style.color = 'var(--red)';
   } finally {
@@ -4621,7 +4640,7 @@ async function topupAgentFund() {
       msgEl.style.color = 'var(--red)';
     }
   } catch(err) {
-    console.error('Topup error:', err);
+    // console.error('Topup error:', err);
     msgEl.textContent = 'Error: ' + (err.message || 'Transaction failed');
     msgEl.style.color = 'var(--red)';
   }
@@ -4725,9 +4744,13 @@ async function forceWakeupAgent() {
       // Simulate first to prevent wasted gas
       await harness.restart.staticCall();
     } catch (simErr) {
-      console.log("Simulation error:", simErr);
+      // console.log("Simulation error:", simErr);
       if (simErr.data === '0x740d9e57' || (simErr.message && simErr.message.includes('0x740d9e57'))) {
-        throw new Error('Agent cannot be restarted (it may already be active). If it stopped executing, please use the "Add Fund" button above to top-up its balance.');
+        msgEl.textContent = 'Agent is already active! If it stopped executing due to low balance, simply use the "Add Fund" button to top-up. The network will automatically resume it.';
+        msgEl.style.color = 'var(--green)';
+        msgEl.style.display = 'block';
+        setTimeout(checkAgentStatus, 2000);
+        return;
       }
       throw simErr;
     }
@@ -4748,7 +4771,7 @@ async function forceWakeupAgent() {
       checkAgentStatus();
     }, 2000);
   } catch (err) {
-    console.error('Wakeup Error:', err);
+    // console.error('Wakeup Error:', err);
     if (err.data === '0x740d9e57' || (err.message && err.message.includes('0x740d9e57'))) {
       msgEl.textContent = 'Agent is already active! If it stopped executing, please use the Top-Up Agent Fund button above.';
     } else {
