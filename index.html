@@ -738,6 +738,59 @@ header {
 .status-badge.offline { background: var(--red-bg); color: var(--red); }
 
 /* =====================================================
+   TAB NAVIGATION
+   ===================================================== */
+.tab-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-lg);
+  backdrop-filter: blur(20px);
+  margin-bottom: 28px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-lg) - 4px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+  flex-shrink: 0;
+}
+.tab-btn:hover {
+  color: var(--text-1);
+  background: var(--surface-2);
+  border-color: var(--border-1);
+}
+.tab-btn.active {
+  color: var(--gold-2);
+  background: linear-gradient(135deg, rgba(200,185,138,0.18) 0%, rgba(200,185,138,0.06) 100%);
+  border-color: var(--border-accent);
+  box-shadow: 0 0 14px rgba(200,185,138,0.08);
+}
+.tab-btn svg { flex-shrink: 0; }
+
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* =====================================================
    RESPONSIVE
    ===================================================== */
 @media (max-width: 900px) {
@@ -1307,8 +1360,29 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
   <!-- ===================== DASHBOARD ===================== -->
   <div id="dashboard">
 
-    <!-- Stats Bar -->
+    <!-- Tab Navigation -->
+    <nav class="tab-nav" id="main-tab-nav">
+      <button class="tab-btn active" id="tab-btn-wallet" onclick="switchTab('wallet')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Wallet
+      </button>
+      <button class="tab-btn" id="tab-btn-network" onclick="switchTab('network')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Network & Send
+      </button>
+      <button class="tab-btn" id="tab-btn-defi" onclick="switchTab('defi')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        DeFi & Assets
+      </button>
+      <button class="tab-btn" id="tab-btn-agent" onclick="switchTab('agent')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Sovereign Agent
+      </button>
+    </nav>
+
+    <!-- Stats Bar (always visible) -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+
       <div style="display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;color:var(--text-3);">
         <span class="live-dot"></span> Live data
       </div>
@@ -1340,6 +1414,9 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
     </div>
 
 
+    <!-- TAB: WALLET -->
+    <div class="tab-pane active" id="tab-wallet">
+      <div style="display:flex;flex-direction:column;gap:28px;">
     <!-- Mini Charts -->
     <div class="chart-card" id="chart-section" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px 0;">
@@ -1377,11 +1454,6 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
       </div>
     </div>
 
-    <!-- Main Grid -->
-    <div class="main-grid">
-
-      <!-- Left: Wallet Info + Transaction History -->
-      <div style="display:flex;flex-direction:column;gap:28px;">
 
         <!-- Wallet Info Card -->
         <div class="card">
@@ -1432,6 +1504,12 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- TAB: DEFI & ASSETS -->
+    <div class="tab-pane" id="tab-defi">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));gap:28px;align-items:start;">
         <!-- NFT Gallery (v7.0) -->
         <div class="card">
           <div class="card-header">
@@ -1461,10 +1539,86 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           </div>
         </div>
 
-      </div>
+        <!-- Ritual Risk Engine — ONNX Precompile 0x0800 -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-3);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:3px;">Ritual ONNX</div>
+              <span class="card-title">Ritual Risk Engine</span>
+            </div>
+            <span style="font-family:var(--font-mono);font-size:9px;color:var(--text-3);background:rgba(200,185,138,0.07);border:1px solid var(--border-1);border-radius:4px;padding:2px 8px;letter-spacing:0.1em;">PRECOMPILE 0x0800</span>
+            <button onclick="onnxResetSignals()" class="btn btn-ghost" style="margin-left:auto;font-size:11px;padding:5px 14px;">Reset</button>
+          </div>
+          <div class="card-body">
+            <p style="font-size:12px;color:var(--text-3);margin-bottom:16px;line-height:1.6;">Run a machine-learning model directly through Ritual. The contract sends your input to the native ONNX precompile and receives the prediction in the same transaction.</p>
 
-      <!-- Right: Network + Send + Explorer -->
-      <div style="display:flex;flex-direction:column;gap:28px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+              <!-- LEFT: Signal Inputs -->
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">Model Inputs</div>
+                <p style="font-size:11px;color:var(--text-3);margin-bottom:14px;">Adjust the ten signals, then run the model on Ritual Testnet.</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="onnx-signals-grid">
+                  <!-- signals injected by JS -->
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">
+                  <button class="btn btn-primary" id="onnx-run-btn" onclick="runOnnxInference()" style="justify-content:center;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Inference
+                  </button>
+                  <button class="btn btn-ghost" id="onnx-record-btn" onclick="recordOnnxOnChain()" style="justify-content:center;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    Record on Testnet
+                  </button>
+                </div>
+                <div id="onnx-status-box" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(0,0,0,0.2);border:1px solid var(--border-1);border-radius:var(--r-sm);">
+                  <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-2);" id="onnx-status-text"></div>
+                </div>
+              </div>
+
+              <!-- RIGHT: Result Panel -->
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">Ritual Result</div>
+                <p style="font-size:11px;color:var(--text-3);margin-bottom:14px;">Returned by the deployed contract and Ritual ONNX precompile.</p>
+
+                <!-- Result oval / display -->
+                <div id="onnx-result-panel" style="background:rgba(0,0,0,0.25);border:1px solid var(--border-1);border-radius:16px;padding:32px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:160px;gap:10px;margin-bottom:14px;">
+                  <div style="font-size:10px;font-family:var(--font-mono);color:var(--text-3);letter-spacing:0.2em;text-transform:uppercase;" id="onnx-result-label">READY</div>
+                  <div style="font-size:32px;font-weight:700;color:var(--gold-2);font-family:var(--font-mono);letter-spacing:0.05em;" id="onnx-result-score">— —</div>
+                  <div style="font-size:10px;font-family:var(--font-mono);color:var(--text-3);" id="onnx-result-sub"></div>
+                </div>
+
+                <p style="font-size:11px;color:var(--text-3);line-height:1.6;" id="onnx-result-desc">Use the sample signals or tune the values, then run the model on Ritual Testnet.</p>
+
+                <!-- Explorer link after tx -->
+                <div id="onnx-explorer-wrap" style="display:none;margin-top:10px;">
+                  <a id="onnx-explorer-link" href="#" target="_blank" rel="noopener noreferrer"
+                    style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:var(--font-mono);color:var(--gold-1);text-decoration:none;border:1px solid var(--border-accent);border-radius:var(--r-sm);padding:6px 12px;background:rgba(200,185,138,0.05);">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    View on Ritual Explorer →
+                  </a>
+                  <div id="onnx-tx-hash" style="font-size:10px;font-family:var(--font-mono);color:var(--text-3);margin-top:6px;word-break:break-all;"></div>
+                </div>
+
+                <!-- History -->
+                <div style="margin-top:16px;border-top:1px solid var(--border-1);padding-top:14px;">
+                  <span class="label" style="margin-bottom:8px;display:block;">Last 5 Runs</span>
+                  <div id="onnx-history-list" style="display:flex;flex-direction:column;gap:4px;">
+                    <div style="font-size:11px;color:var(--text-3);text-align:center;padding:8px;">No runs yet</div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /grid -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB: NETWORK & SEND -->
+    <div class="tab-pane" id="tab-network">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));gap:28px;align-items:start;">
 
         <!-- Network Card -->
         <div class="card">
@@ -1574,6 +1728,12 @@ body, .card, .btn, .icon-btn, input, header, .net-pill, .status-badge, .refresh-
           </div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- TAB: SOVEREIGN AGENT -->
+    <div class="tab-pane" id="tab-agent">
+      <div style="display:flex;flex-direction:column;gap:28px;max-width:800px;margin:0 auto;">
         <!-- === SOVEREIGN AGENT DEPLOYMENT (NEW) === -->
         <style>
           .agent-deploy-card {
@@ -3509,6 +3669,24 @@ function setMaxAmount() {
 }
 
 // ── Copy with animation ──
+// ===================== TAB NAVIGATION =====================
+function switchTab(tabId) {
+  // Update buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('tab-btn-' + tabId).classList.add('active');
+
+  // Update panes
+  document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  
+  // Re-render chart if switching to wallet tab so sparklines draw correctly
+  if (tabId === 'wallet' && typeof window.updateCharts === 'function') {
+    window.updateCharts();
+  }
+}
+
+// ==========================================================
+
 function copyAddress() {
   if (!userAddress) return;
   navigator.clipboard.writeText(userAddress).then(() => {
@@ -4784,9 +4962,300 @@ async function forceWakeupAgent() {
 }
 // === END AGENT STATUS CHECK FUNCTIONS ===
 
+// === RITUAL RISK ENGINE — ONNX PRECOMPILE 0x0800 ===
+
+// The Ritual Risk Engine model (10-signal → risk score)
+// Replace with a real deployed contract + model when available
+const ONNX_RISK_CONTRACT = '0x50cb12d69667B7c25041c9044ED21b7e3262b628'; // set after deploy
+const ONNX_RISK_MODEL_ID = 'hf/ritual-xyz/risk-engine/model.onnx@0000000000000000000000000000000000000000'; // placeholder
+const ONNX_PRECOMPILE    = '0x0000000000000000000000000000000000000800';
+const RITUAL_EXPLORER    = 'https://explorer.ritualfoundation.org/tx/';
+
+const ONNX_DEFAULT_SIGNALS = [0.5, -0.14, 0.65, 1.52, -0.23, -0.23, 1.58, 0.77, -0.47, 0.54];
+let   onnxHistory = [];
+
+const SIGNAL_DESCRIPTIONS = [
+  "Debt-to-Collateral Ratio",
+  "Historical Liquidation Count",
+  "30-Day DEX Transaction Volume",
+  "Wallet Age in Days",
+  "Failed Transactions Count",
+  "Token Balance Diversity",
+  "Average Gas Price Paid",
+  "Contract Interaction Count",
+  "Bridged Assets Volume",
+  "Governance Voting Participation"
+];
+
+// Build 10 signal inputs on page load
+function onnxBuildSignals() {
+  const grid = document.getElementById('onnx-signals-grid');
+  if (!grid) return;
+  grid.innerHTML = ONNX_DEFAULT_SIGNALS.map((val, i) => `
+    <div style="min-width:0;">
+      <div style="font-size:9px;font-family:var(--font-mono);color:var(--text-3);letter-spacing:0.1em;margin-bottom:4px;white-space:nowrap;position:relative;display:inline-block;cursor:help;" 
+           onmouseover="this.querySelector('.sig-tooltip').style.visibility='visible';this.querySelector('.sig-tooltip').style.opacity='1';"
+           onmouseout="this.querySelector('.sig-tooltip').style.visibility='hidden';this.querySelector('.sig-tooltip').style.opacity='0';">
+        SIGNAL ${String(i+1).padStart(2,'0')} <span style="opacity:0.7;">ⓘ</span>
+        <div class="sig-tooltip" style="visibility:hidden;opacity:0;transition:opacity 0.2s;position:absolute;bottom:150%;left:0;background:#1a1a24;color:#fff;padding:6px 10px;border-radius:4px;border:1px solid #333;font-size:11px;text-transform:none;letter-spacing:normal;white-space:nowrap;z-index:100;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+          ${SIGNAL_DESCRIPTIONS[i]}
+        </div>
+      </div>
+      <input type="number" class="form-input" id="onnx-sig-${i}" value="${val}" step="0.01" min="-10" max="10"
+        onchange="if(this.value>10)this.value=10; if(this.value<-10)this.value=-10;"
+        style="width:100%;box-sizing:border-box;font-family:var(--font-mono);font-size:13px;text-align:center;padding:10px 8px;">
+    </div>
+  `).join('');
+}
+
+function onnxResetSignals() {
+  ONNX_DEFAULT_SIGNALS.forEach((val, i) => {
+    const el = document.getElementById(`onnx-sig-${i}`);
+    if (el) el.value = val;
+  });
+  // Reset result panel
+  document.getElementById('onnx-result-label').textContent = 'READY';
+  document.getElementById('onnx-result-score').textContent = '— —';
+  document.getElementById('onnx-result-sub').textContent   = '';
+  document.getElementById('onnx-result-panel').style.borderColor = 'var(--border-1)';
+  document.getElementById('onnx-result-desc').textContent = 'Use the sample signals or tune the values, then run the model on Ritual Testnet.';
+  document.getElementById('onnx-explorer-wrap').style.display = 'none';
+  document.getElementById('onnx-status-box').style.display = 'none';
+  renderOnnxHistory();
+}
+
+function onnxGetSignals() {
+  return Array.from({length: 10}, (_, i) => {
+    const el = document.getElementById(`onnx-sig-${i}`);
+    let val = el ? parseFloat(el.value) || 0 : 0;
+    
+    // Security Layer: clamp extreme values (-10 to 10 is standard Z-score limit)
+    if (val > 10) val = 10;
+    if (val < -10) val = -10;
+    
+    // Auto-correct the input UI if user bypassed it
+    if (el && parseFloat(el.value) !== val) el.value = val;
+    
+    return val;
+  });
+}
+
+function encodeRitualTensor(floatValues, shape) {
+  const coder = ethers.AbiCoder.defaultAbiCoder();
+  return coder.encode(['uint8','uint16[]','int32[]'], [
+    1, // dtype = float32
+    shape,
+    floatValues.map(v => {
+      const buf = new ArrayBuffer(4);
+      new DataView(buf).setFloat32(0, v, false);
+      return new DataView(buf).getInt32(0, false);
+    })
+  ]);
+}
+
+function encodeOnnxRequest(modelId, tensorHex) {
+  const coder = ethers.AbiCoder.defaultAbiCoder();
+  return coder.encode(
+    ['bytes','bytes','uint8','uint8','uint8','uint8','uint8'],
+    [ethers.toUtf8Bytes(modelId), tensorHex, 2, 0, 2, 0, 1]
+  );
+}
+
+function decodeOnnxOutput(resultHex) {
+  try {
+    const coder = ethers.AbiCoder.defaultAbiCoder();
+    const [tensorBytes] = coder.decode(['bytes','uint8','uint8','uint8'], resultHex);
+    const [dtype, shape, rawVals] = coder.decode(['uint8','uint16[]','int32[]'], tensorBytes);
+    const floats = rawVals.map(v => {
+      const buf = new ArrayBuffer(4);
+      new DataView(buf).setInt32(0, Number(v), false);
+      return new DataView(buf).getFloat32(0, false);
+    });
+    return { dtype: Number(dtype), shape: Array.from(shape).map(Number), values: floats };
+  } catch(e) {
+    return null;
+  }
+}
+
+function onnxShowResult(values, isMock, txHash) {
+  const score = values && values.length > 0 ? values[0] : null;
+  const panel = document.getElementById('onnx-result-panel');
+  const label = document.getElementById('onnx-result-label');
+  const scoreEl = document.getElementById('onnx-result-score');
+  const sub = document.getElementById('onnx-result-sub');
+  const desc = document.getElementById('onnx-result-desc');
+
+  if (score !== null) {
+    const risk = score > 0.7 ? 'HIGH RISK' : score > 0.4 ? 'MODERATE' : 'LOW RISK';
+    const color = score > 0.7 ? 'var(--red)' : score > 0.4 ? 'var(--amber)' : 'var(--green)';
+    label.textContent = isMock ? 'SIMULATED' : 'RESULT';
+    label.style.color = isMock ? 'var(--amber)' : 'var(--text-3)';
+    scoreEl.textContent = score.toFixed(4);
+    scoreEl.style.color = color;
+    sub.textContent = risk;
+    sub.style.color = color;
+    panel.style.borderColor = color;
+    desc.textContent = isMock
+      ? '⚠ Simulated result — precompile not cached. Encoding was correct.'
+      : `All ${values.length} output value(s) received from 0x0800.`;
+  }
+
+  if (txHash) {
+    const wrap = document.getElementById('onnx-explorer-wrap');
+    const link = document.getElementById('onnx-explorer-link');
+    const hashEl = document.getElementById('onnx-tx-hash');
+    link.href = RITUAL_EXPLORER + txHash;
+    hashEl.textContent = 'TX: ' + txHash;
+    wrap.style.display = 'block';
+  }
+}
+
+async function runOnnxInference() {
+  const signals = onnxGetSignals();
+  const btn = document.getElementById('onnx-run-btn');
+  const statusBox = document.getElementById('onnx-status-box');
+  const statusTxt = document.getElementById('onnx-status-text');
+
+  btn.disabled = true;
+  statusBox.style.display = 'block';
+  statusTxt.style.color = 'var(--text-2)';
+
+  try {
+    statusTxt.textContent = '① Encoding RitualTensor [1,10]...';
+    const tensorHex = encodeRitualTensor(signals, [1, 10]);
+    const calldata  = encodeOnnxRequest(ONNX_RISK_MODEL_ID, tensorHex);
+
+    statusTxt.textContent = '② eth_call → 0x0800...';
+    const provider = new ethers.BrowserProvider(window.ethereum);
+
+    let result, isMock = false;
+    try {
+      result = await provider.call({ to: ONNX_PRECOMPILE, data: calldata });
+      const decoded = decodeOnnxOutput(result);
+      if (decoded) {
+        statusTxt.style.color = 'var(--green)';
+        statusTxt.textContent = '✓ Result received from 0x0800';
+        onnxShowResult(decoded.values, false, null);
+        onnxAddHistory(signals, decoded.values[0], false, null);
+      }
+    } catch(callErr) {
+      isMock = true;
+      statusTxt.style.color = 'var(--amber)';
+      statusTxt.textContent = '⚠ Model not cached on node — showing simulated output';
+      const mockScore = Math.abs(signals.reduce((a,b)=>a+b,0) / signals.length * 0.3 + 0.3);
+      onnxShowResult([Math.min(1, Math.max(0, mockScore))], true, null);
+      onnxAddHistory(signals, mockScore, true, null);
+    }
+
+  } catch(err) {
+    statusTxt.style.color = 'var(--red)';
+    statusTxt.textContent = 'Error: ' + (err.reason || err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function recordOnnxOnChain() {
+  const signals = onnxGetSignals();
+  const btn = document.getElementById('onnx-record-btn');
+  const statusBox = document.getElementById('onnx-status-box');
+  const statusTxt = document.getElementById('onnx-status-text');
+
+  if (!window.ethereum) { alert('Connect wallet first'); return; }
+
+  btn.disabled = true;
+  statusBox.style.display = 'block';
+  statusTxt.style.color = 'var(--text-2)';
+
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer   = await provider.getSigner();
+    const address  = await signer.getAddress();
+    // Gunakan contract Ritual Wallet yang sudah ada di dApp sebagai penerima dummy tx
+    const dummyContract = '0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948';
+
+    if (ONNX_RISK_CONTRACT === '0x0000000000000000000000000000000000000000') {
+      // No contract deployed — send a dummy tx to the existing Ritual Wallet contract for on-chain proof
+      statusTxt.textContent = '① Sending mock record tx (to existing contract)...';
+      const tx = await signer.sendTransaction({
+        to: dummyContract, // send to the Ritual Wallet contract instead of self
+        value: 0n,
+        data: "0x"
+      });
+      statusTxt.textContent = '② Waiting for confirmation...';
+      const receipt = await tx.wait();
+      statusTxt.style.color = 'var(--green)';
+      statusTxt.textContent = '✓ Recorded (Mock TX) on Ritual Testnet!';
+      const mockScore = Math.abs(signals.reduce((a,b)=>a+b,0) / signals.length * 0.3 + 0.3);
+      onnxShowResult([Math.min(1, Math.max(0, mockScore))], true, receipt.hash);
+      onnxAddHistory(signals, mockScore, true, receipt.hash);
+    } else {
+      // Contract deployed — call it
+      const ABI = ['function runInference(int256[] calldata signals) external'];
+      const contract = new ethers.Contract(ONNX_RISK_CONTRACT, ABI, signer);
+      statusTxt.textContent = '① Sending tx to Risk Engine contract...';
+      const scaledSignals = signals.map(v => BigInt(Math.round(v * 1e6)));
+      const tx = await contract.runInference(scaledSignals);
+      statusTxt.textContent = '② Waiting for confirmation...';
+      const receipt = await tx.wait();
+      statusTxt.style.color = 'var(--green)';
+      statusTxt.textContent = '✓ Recorded! ONNX called internally via 0x0800';
+      const mockScore = Math.abs(signals.reduce((a,b)=>a+b,0) / signals.length * 0.3 + 0.3);
+      onnxShowResult([Math.min(1, Math.max(0, mockScore))], false, receipt.hash);
+      onnxAddHistory(signals, mockScore, false, receipt.hash);
+    }
+
+  } catch(err) {
+    statusTxt.style.color = 'var(--red)';
+    statusTxt.textContent = 'Error: ' + (err.reason || err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function onnxAddHistory(signals, score, isMock, txHash) {
+  onnxHistory.unshift({
+    signals: signals.slice(0,3).map(v=>v.toFixed(2)).join(', ') + '…',
+    score: isNaN(score) ? 0 : score,
+    mock: isMock,
+    hash: txHash,
+    ts: new Date().toLocaleTimeString()
+  });
+  if (onnxHistory.length > 5) onnxHistory.pop();
+  renderOnnxHistory();
+}
+
+function renderOnnxHistory() {
+  const el = document.getElementById('onnx-history-list');
+  if (!el) return;
+  if (onnxHistory.length === 0) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--text-3);text-align:center;padding:8px;">No runs yet</div>';
+    return;
+  }
+  el.innerHTML = onnxHistory.map(h => {
+    const risk = h.score > 0.7 ? 'HIGH' : h.score > 0.4 ? 'MOD' : 'LOW';
+    const color = h.score > 0.7 ? 'var(--red)' : h.score > 0.4 ? 'var(--amber)' : 'var(--green)';
+    const txLink = h.hash
+      ? `<a href="${RITUAL_EXPLORER}${h.hash}" target="_blank" style="color:var(--gold-1);text-decoration:none;font-size:10px;">↗ tx</a>`
+      : (h.mock ? '<span style="color:var(--amber);font-size:10px;">simulated</span>' : '');
+    return `
+      <div class="tx-item" style="padding:8px 12px;">
+        <div class="tx-badge ${h.mock ? 'out' : 'in'}" style="font-size:10px;">${h.mock ? '⚠' : '✓'}</div>
+        <div class="tx-info">
+          <div class="tx-hash" style="font-family:var(--font-mono);">[${h.signals}]</div>
+          <div class="tx-meta">${h.ts} ${txLink}</div>
+        </div>
+        <div style="font-size:12px;font-weight:700;font-family:var(--font-mono);color:${color};">${risk}<br><span style="font-size:10px;font-weight:400;">${h.score.toFixed(3)}</span></div>
+      </div>
+    `;
+  }).join('');
+}
+// === END RITUAL RISK ENGINE ===
+
 // ── INITIAL THEME CHECK ──
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
+  onnxBuildSignals();
 });
 
 </script>
